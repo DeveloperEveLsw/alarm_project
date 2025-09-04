@@ -28,5 +28,4 @@ pnpm install
 
 
 # 📚 STACKS
----
 <img src="https://img.shields.io/badge/react native-61DAFB?style=for-the-badge&logo=react&logoColor=white">
