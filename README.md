@@ -9,6 +9,8 @@ pnpm install
 ```
 
 ## 사전 개발환경 구축
+- 공통
+  - `npm install -g react-native-cli` 실행 글로벌로 설치하는건 그게 빠르고 편해서 안그러면 npx로 해야하는데 할때마다 임시 파일을 생성하기에 비교적 느림(용량 적으면 react-native를 쓸때 앞에 npx 붙혀서 실행)
 - 안드로이드
   - 안드로이드 스튜디오 환경변수 추가
   - 안드로이드 스튜디오에서 Tools -> Device Managerd 예뮬 실행 cmd에 `adb devices` 입력하여 확인
