@@ -1,5 +1,5 @@
 이 프로젝트는 대학교 융합 팀 프로젝트입니다.
-### 최초 clone시
+## 최초 clone시
 ``` python
 npm install
 # or
@@ -8,7 +8,7 @@ yarn install
 pnpm install
 ```
 
-### 사전 개발환경 구축
+## 사전 개발환경 구축
 - 안드로이드
   - 안드로이드 스튜디오 환경변수 추가
   - 안드로이드 스튜디오에서 Tools -> Device Managerd 예뮬 실행 cmd에 `adb devices` 입력하여 확인
@@ -17,7 +17,7 @@ pnpm install
 - ios
   - 작성 바람, expo go를 사용하며 ios는 Mac이 없으면 예뮬 테스트가 불가함
 
-### 디버깅, 테스트 빌드
+## 디버깅, 테스트 빌드
 - 안드로이드
   - 안드로이드 스튜디오에서 예뮬을 작동시킨 다음에 터미널에 `react-native run-android` 입력 만약 안될시 `npx install`(임시 방편임) 혹은 npm 폴더 날리고 `npm install`
   - `react-native run-android` 쓰는 이유 오래 걸려도 실제 빌드랑 비슷함
