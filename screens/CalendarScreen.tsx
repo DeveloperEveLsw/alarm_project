@@ -9,7 +9,7 @@ const CalendarScreen = () => {
   
   const [currentDate, setCurrentDate] = useState("2025년 9월")
   const SCREEN_WIDTH = Dimensions.get('window').width;
-
+  const SCREEN_HEIGHT = Dimensions.get('window').height;
   return (
     <View>
       <View><Text>씨발 {currentDate}</Text></View>
@@ -20,10 +20,11 @@ const CalendarScreen = () => {
           calendarWidth={SCREEN_WIDTH} // 달력 너비 (원하는 값으로 조절)
           onVisibleMonthsChange={(date:any)=>{setCurrentDate(date[0].year+'년 '+date[0].month+'월')}}
           hideExtraDays={false}
-           style={{
-    padding: 0,
-    margin: 0,
-    borderWidth: 0}}
+          style={{
+            padding: 0,
+            margin: 0,
+            borderWidth: 0}}
+          theme={{}}
           dayComponent={({ date, state }:{date?:DateData, state?:string})=> {
             const dateStr: string | undefined = date?.dateString; // '2025-03-01'
             const holidayMap: {[key:string]: { label: string; color: string }} = {
@@ -44,20 +45,19 @@ const CalendarScreen = () => {
             return (
             <View style={{
               width: SCREEN_WIDTH/7,
-              height:100,
-              justifyContent: 'center',
-              alignItems: 'center',
-              borderTopColor: '#000',
+              height: SCREEN_HEIGHT/6-10,
+              justifyContent: 'flex-start',
+              alignItems: 'flex-start',
+              borderColor: '#bebebeff',
               borderStyle: "solid",
-              borderWidth: 1,
-              backgroundColor: state === 'disabled' ? '#f0f0f0' : '#fff',
-              margin: 0,
-              padding: 0
+              borderTopWidth : 1
             }}>
               <Text style={{
                 fontSize: 16,
                 color: textColor,
+                opacity: state == "disabled" ? 0.3 : 1,
                 fontWeight: holiday ? 'bold' : 'normal',
+                paddingTop:3
               }}>
                 {date?.day}
               </Text>
