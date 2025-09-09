@@ -13,7 +13,7 @@ import {
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { NavigationContainer } from '@react-navigation/native';
 import HomeScreen from './screens/HomeScreen'
-import SubScreenOne from './screens/SubScreenOne'
+import CalendarScreen from './screens/CalendarScreen'
 import SubScreenTwo from './screens/SubScreenTwo';
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -39,7 +39,7 @@ function App() {
             }}
           >
             <Tab.Screen name="알람" component={HomeScreen} />
-            <Tab.Screen name="달력" component={SubScreenOne} />
+            <Tab.Screen name="달력" component={CalendarScreen} />
             <Tab.Screen name="공유" component={SubScreenTwo} />
           </Tab.Navigator>
         </NavigationContainer>
