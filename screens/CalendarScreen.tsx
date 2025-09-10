@@ -12,7 +12,7 @@ const CalendarScreen = () => {
   const SCREEN_HEIGHT = Dimensions.get('window').height;
   return (
     <View>
-      <View><Text>씨발 {currentDate}</Text></View>
+      <View><Text>{currentDate}</Text></View>
         <CalendarList
           renderHeader={() => <View />}
           horizontal={true} // 가로 스크롤
