@@ -1,15 +1,32 @@
 import React from 'react'
 import { useState, useRef} from 'react'
-import { StatusBar, StyleSheet, useColorScheme, View, Text, FlatList} from 'react-native';
+import { StatusBar, StyleSheet, useColorScheme, View, Text, FlatList, TouchableOpacity} from 'react-native';
 import { CalendarList, DateData } from 'react-native-calendars'
 import { Dimensions } from 'react-native';
 import dayjs from "dayjs"
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+type RootStackParamList = {
+  ScheduleEditor: { date: string };
+  // 다른 스크린들도 필요한 경우 여기에 추가
+};
+
+type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ScheduleEditor'>;
+
 
 const CalendarScreen = () => {
   
   const [currentDate, setCurrentDate] = useState("2025년 9월")
   const SCREEN_WIDTH = Dimensions.get('window').width;
   const SCREEN_HEIGHT = Dimensions.get('window').height;
+  
+  const navigation = useNavigation<CalendarScreenNavigationProp>();
+
+  const handleDayPress = (dateString: string) => {
+    navigation.navigate('ScheduleEditor', { date: dateString });
+  };
+
   return (
     <View>
       <View><Text>{currentDate}</Text></View>
@@ -43,34 +60,36 @@ const CalendarScreen = () => {
             if (dayOfWeek === 6) textColor = '#1976d2'; // 토요일 파랑
 
             return (
-            <View style={{
-              width: SCREEN_WIDTH/7,
-              height: SCREEN_HEIGHT/6-10,
-              justifyContent: 'flex-start',
-              alignItems: 'flex-start',
-              borderColor: '#bebebeff',
-              borderStyle: "solid",
-              borderTopWidth : 1
-            }}>
-              <Text style={{
-                fontSize: 16,
-                color: textColor,
-                opacity: state == "disabled" ? 0.3 : 1,
-                fontWeight: holiday ? 'bold' : 'normal',
-                paddingTop:3
+            <TouchableOpacity disabled={state === 'disabled'} onPress={() => date && handleDayPress(date.dateString)}>
+              <View style={{
+                width: SCREEN_WIDTH/7,
+                height: SCREEN_HEIGHT/6-10,
+                justifyContent: 'flex-start',
+                alignItems: 'center',
+                borderColor: '#bebebeff',
+                borderStyle: "solid",
+                borderTopWidth : 1
               }}>
-                {date?.day}
-              </Text>
-              {holiday && (
                 <Text style={{
-                  fontSize: 10,
-                  color: holiday.color,
-                  marginTop: 2,
+                  fontSize: 16,
+                  color: textColor,
+                  opacity: state == "disabled" ? 0.3 : 1,
+                  fontWeight: holiday ? 'bold' : 'normal',
+                  paddingTop:3
                 }}>
-                  {holiday.label}
+                  {date?.day}
                 </Text>
-              )}
-      </View>
+                {holiday && (
+                  <Text style={{
+                    fontSize: 10,
+                    color: holiday.color,
+                    marginTop: 2,
+                  }}>
+                    {holiday.label}
+                  </Text>
+                )}
+              </View>
+            </TouchableOpacity>
           )}}
         >
       </CalendarList>
@@ -78,4 +97,4 @@ const CalendarScreen = () => {
   )
 }
 
-export default CalendarScreen 
+export default CalendarScreen
