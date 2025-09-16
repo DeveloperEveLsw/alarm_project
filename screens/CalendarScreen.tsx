@@ -6,13 +6,9 @@ import { Dimensions } from 'react-native';
 import dayjs from "dayjs"
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {RootStackParamList} from '../types/navigation.types'
 
-type RootStackParamList = {
-  ScheduleEditor: { date: string };
-  // 다른 스크린들도 필요한 경우 여기에 추가
-};
-
-type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ScheduleEditor'>;
+type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
 
 const CalendarScreen = () => {

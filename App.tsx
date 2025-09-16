@@ -17,15 +17,9 @@ import DDayScreen from './screens/DDayScreen';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 
-dayjs.locale('ko');
+import {RootStackParamList} from './types/navigation.types'
 
-type RootStackParamList = {
-  Main: undefined;
-  ScheduleEditor: { date: string };
-  Todo: undefined;
-  Alarm: undefined;
-  DDay: undefined;
-};
+dayjs.locale('ko');
 
 function MainTap() {
   
