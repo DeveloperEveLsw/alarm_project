@@ -1,31 +1,66 @@
-import React, {useState} from 'react'
-import {StyleProp, ViewStyle,TextStyle ,TouchableOpacity, Text, ColorValue} from 'react-native'
+import React, { useEffect, useState } from 'react';
+import {
+  ColorValue,
+  StyleProp,
+  Text,
+  TextStyle,
+  TouchableOpacity,
+  ViewStyle,
+} from 'react-native';
 
-type IconButtonProps = {
-  onToggle: (isChecked:boolean) => void;
+type TextToggleButtonProps = {
+  onToggle: (isChecked: boolean) => void;
   boxStyle?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   color: ColorValue;
   onToggleColor: ColorValue;
   onToggleBackgroundColor: ColorValue;
   title?: string;
+  isToggled?: boolean;
 };
 
-const IconToggleButton = ({boxStyle, textStyle, title, onToggle, color, onToggleColor='#FFF', onToggleBackgroundColor}:IconButtonProps) => {
+const TextToggleButton = ({
+  boxStyle,
+  textStyle,
+  title,
+  onToggle,
+  color,
+  onToggleColor = '#FFF',
+  onToggleBackgroundColor,
+  isToggled,
+}: TextToggleButtonProps) => {
+  const [isChecked, setIsChecked] = useState<boolean>(Boolean(isToggled));
 
-  const [isChecked, setIsChecked] = useState(false);
-  
-    return (
-  <TouchableOpacity
-    activeOpacity={1}
-    onPress={()=>{
-      setIsChecked(!isChecked)
-      onToggle(isChecked)
-    }}
-    style={[{justifyContent:'center',alignContent:'center', alignItems:'center'},boxStyle,isChecked ? {backgroundColor:onToggleBackgroundColor} : {}]}>
-    <Text style={[textStyle,{color:isChecked ? onToggleColor : color}]}>{title}</Text>
-  </TouchableOpacity>
-  )
-}
+  useEffect(() => {
+    if (typeof isToggled === 'boolean') {
+      setIsChecked(isToggled);
+    }
+  }, [isToggled]);
 
-export default IconToggleButton
+  const handlePress = () => {
+    const nextValue = !isChecked;
+    if (typeof isToggled !== 'boolean') {
+      setIsChecked(nextValue);
+    }
+    onToggle(nextValue);
+  };
+
+  const containerStyle = [
+    { justifyContent: 'center', alignContent: 'center', alignItems: 'center' },
+    boxStyle,
+    isChecked ? { backgroundColor: onToggleBackgroundColor } : {},
+  ];
+
+  const textStyles = [
+    textStyle,
+    { color: isChecked ? onToggleColor : color },
+  ];
+
+  return (
+    <TouchableOpacity activeOpacity={1} onPress={handlePress} style={containerStyle}>
+      <Text style={textStyles}>{title}</Text>
+    </TouchableOpacity>
+  );
+};
+
+export default TextToggleButton;

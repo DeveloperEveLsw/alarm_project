@@ -22,5 +22,8 @@ declare module 'react-native-sqlite-storage' {
       length: number;
       item: (index: number) => any;
     };
+    insertId?: number;
+    rowsAffected?: number;
+
   }
 }

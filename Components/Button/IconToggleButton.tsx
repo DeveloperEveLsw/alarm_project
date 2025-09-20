@@ -1,7 +1,8 @@
-import React, {useState} from 'react'
-import {StyleProp, ViewStyle, TouchableOpacity, Text, ColorValue} from 'react-native'
+import React, { useEffect, useState } from 'react';
+import { ColorValue, StyleProp, TextStyle, TouchableOpacity, ViewStyle } from 'react-native';
+import { Text } from 'react-native';
 
-type IconButtonProps = {
+type IconToggleButtonProps = {
   IconComponent: React.ComponentType<{
     name: string;
     size?: number;
@@ -11,27 +12,55 @@ type IconButtonProps = {
   onToggleIconName?: string;
   iconSize?: number;
   iconColor?: string;
-  onToggle: (isChecked:boolean) => void;
+  onToggle: (isChecked: boolean) => void;
   boxStyle?: StyleProp<ViewStyle>;
-  textStyle?: StyleProp<ViewStyle>;
-  title?: string
+  textStyle?: StyleProp<TextStyle>;
+  title?: string;
+  isToggled?: boolean;
 };
 
-const IconToggleButton = ({boxStyle, textStyle, IconComponent, title, iconName, iconSize, iconColor, onToggle, onToggleIconName}:IconButtonProps) => {
-  const [isChecked, setIsChecked] = useState(false);
-  
-    return (
-  <TouchableOpacity
-    activeOpacity={1}
-    onPress={()=>{
-      setIsChecked(!isChecked)
-      onToggle(!isChecked)
-    }}
-    style={[boxStyle,{flexDirection: 'row'}]}>
-    <Text style={textStyle}>{title}</Text>
-    <IconComponent name={isChecked ? (onToggleIconName ? onToggleIconName : iconName) : iconName} size={iconSize} color={iconColor} />
-  </TouchableOpacity>
-  )
-}
+const IconToggleButton = ({
+  boxStyle,
+  textStyle,
+  IconComponent,
+  title,
+  iconName,
+  iconSize,
+  iconColor,
+  onToggle,
+  onToggleIconName,
+  isToggled,
+}: IconToggleButtonProps) => {
+  const [isChecked, setIsChecked] = useState<boolean>(Boolean(isToggled));
 
-export default IconToggleButton
+  useEffect(() => {
+    if (typeof isToggled === 'boolean') {
+      setIsChecked(isToggled);
+    }
+  }, [isToggled]);
+
+  const handlePress = () => {
+    const nextValue = !isChecked;
+    if (typeof isToggled !== 'boolean') {
+      setIsChecked(nextValue);
+    }
+    onToggle(nextValue);
+  };
+
+  const iconToRender = isChecked
+    ? onToggleIconName ?? iconName
+    : iconName;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={1}
+      onPress={handlePress}
+      style={[boxStyle, { flexDirection: 'row', alignItems: 'center' }]}
+    >
+      {title ? <Text style={textStyle}>{title}</Text> : null}
+      <IconComponent name={iconToRender} size={iconSize} color={iconColor} />
+    </TouchableOpacity>
+  );
+};
+
+export default IconToggleButton;

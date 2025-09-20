@@ -46,7 +46,7 @@ export class DBManager {
           -- 반복 일정일 경우
           is_repeating INTEGER DEFAULT 0,         -- 0: 단일, 1: 반복
           repeat_type TEXT,                       -- 'weekly' or 'monthly'
-          repeat_weekday INTEGER,                 -- 0(Sun) ~ 6(Sat) ← 요일 반복용
+          repeat_weekday TEXT,                    -- JSON-encoded weekday indices (e.g. '[1,2,3]')
           repeat_day_of_month INTEGER,            -- 1 ~ 31 ← 월 반복용
           
           -- 연결 관계

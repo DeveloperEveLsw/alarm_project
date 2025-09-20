@@ -1,223 +1,379 @@
-import React, { useState, useRef, useEffect, useMemo} from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Animated, Pressable } from 'react-native';
-import { useRoute, RouteProp } from '@react-navigation/native';
-import { Dimensions } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation.types'
-import { DBManager } from '../services/db/db'
-import WheelPicker from '@quidone/react-native-wheel-picker';
-import IconButton from '../Components/Button/IconButton';
-import IconToggleButton from '../Components/Button/IconToggleButton';
-import TextToggleButton from '../Components/Button/TextToggleButton';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import dayjs from 'dayjs';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+import ScheduleTodoCard, {
+  ScheduleTodo,
+  ScheduleTodoFormData,
+} from '../Components/ScheduleTodoCard';
+import { DBManager } from '../services/db/db';
+import { RootStackParamList } from '../types/navigation.types';
 
+type Props = NativeStackScreenProps<RootStackParamList, 'ScheduleEditor'>;
 
-// Define the type for the route params
-type ScheduleEditorScreenRouteProp = RouteProp<{ params: { date: string } }, 'params'>;
-type ScheduleEditorScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ScheduleEditor'>;
+type ExpandedCardId = number | null;
 
-const ScheduleEditorScreen = () => {
-  const route = useRoute<ScheduleEditorScreenRouteProp>();
-  
-  const [timeValue, setTimeValue] = useState(0)
+const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
+  const [dateValue, setDateValue] = useState(route.params.date);
+  const [todos, setTodos] = useState<ScheduleTodo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [expandedCardId, setExpandedCardId] = useState<ExpandedCardId>(null);
 
-  const [title, setTitle] = useState("")
-  const [isRepeatSectionVisible, setIsRepeatSectionVisible] = useState(false);
-  const [repeatType, setRepeatType] = useState<string | null>(null); // 'daily', 'weekly', 'monthly'
-  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([]); // 0:Sun, 1:Mon, ...
+  const closeExpandedCard = useCallback(() => {
+    setExpandedCardId(null);
+  }, []);
 
-  const [isTimePickerVisible, setIsTimePickerVisible] = useState(false)
+  useEffect(() => {
+    setDateValue(route.params.date);
+    closeExpandedCard();
+  }, [closeExpandedCard, route.params.date]);
 
-  const [isDDay, setIsDDay] = useState(false)
+  const loadTodos = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const db = await DBManager.getDB();
+      const [result] = await db.executeSql('SELECT * FROM Todo;');
 
-  console.log("안녕하세요")
+      const parsed: ScheduleTodo[] = [];
+      for (let index = 0; index < result.rows.length; index += 1) {
+        const row = result.rows.item(index);
 
-  const hourData = [...Array(24).keys()].map(i => ({ label: `${i}시`, value: i }));
-  const minuteData = [...Array(60).keys()].map(i => ({ label: `${i}분`, value: i })); 
+        let repeatWeekdays: number[] | null = null;
+        if (typeof row.repeat_weekday === 'string') {
+          try {
+            const parsedValue = JSON.parse(row.repeat_weekday);
+            if (Array.isArray(parsedValue)) {
+              repeatWeekdays = parsedValue
+                .map((value: unknown) => Number(value))
+                .filter(value => Number.isInteger(value) && value >= 0 && value <= 6);
+            }
+          } catch (error) {
+            console.warn('Failed to parse repeat_weekday JSON', row.id, error);
+          }
+        }
+
+        parsed.push({
+          id: Number(row.id),
+          title: typeof row.title === 'string' ? row.title : '',
+          dueDate: typeof row.due_date === 'string' ? row.due_date : null,
+          dueTime: typeof row.due_time === 'string' ? row.due_time : null,
+          isRepeating: Number(row.is_repeating) === 1,
+          repeatType:
+            row.repeat_type === 'weekly' || row.repeat_type === 'monthly'
+              ? row.repeat_type
+              : null,
+          repeatWeekdays,
+          repeatDayOfMonth:
+            row.repeat_day_of_month !== null && row.repeat_day_of_month !== undefined
+              ? Number(row.repeat_day_of_month)
+              : null,
+          ddayId:
+            row.dday_id !== null && row.dday_id !== undefined
+              ? Number(row.dday_id)
+              : null,
+          alarmId:
+            row.alarm_id !== null && row.alarm_id !== undefined
+              ? Number(row.alarm_id)
+              : null,
+          alarmSetId:
+            row.alarm_set_id !== null && row.alarm_set_id !== undefined
+              ? Number(row.alarm_set_id)
+              : null,
+        });
+      }
+
+      const targetDate = dateValue;
+      const targetDay = dayjs(targetDate);
+      const weekday = targetDay.day();
+      const dayOfMonth = targetDay.date();
+
+      const filtered = parsed.filter(todo => {
+        if (todo.isRepeating) {
+          if (todo.repeatType === 'weekly' && todo.repeatWeekdays) {
+            return todo.repeatWeekdays.includes(weekday);
+          }
+
+          if (todo.repeatType === 'monthly' && todo.repeatDayOfMonth !== null) {
+            return todo.repeatDayOfMonth === dayOfMonth;
+          }
+
+          return false;
+        }
+
+        return todo.dueDate === targetDate;
+      });
+
+      setTodos(filtered);
+    } catch (error) {
+      console.error('Failed to load todos for editor', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dateValue]);
+
+  useEffect(() => {
+    loadTodos();
+  }, [loadTodos]);
+
+  const handleTodoCardPress = useCallback(
+    (todo: ScheduleTodo) => {
+      if (expandedCardId === todo.id) {
+        closeExpandedCard();
+        return;
+      }
+      setExpandedCardId(todo.id);
+    },
+    [closeExpandedCard, expandedCardId],
+  );
+
+  const handleSaveExisting = useCallback(
+    async (todo: ScheduleTodo, formData: ScheduleTodoFormData) => {
+      setIsSaving(true);
+      try {
+        const db = await DBManager.getDB();
+        const dueDate = dateValue;
+        const dueTime = formData.isTimePickerVisible
+          ? `${String(formData.timeValue[0]).padStart(2, '0')}:${String(
+              formData.timeValue[1],
+            ).padStart(2, '0')}`
+          : null;
+
+        const isRepeating = formData.isRepeatSectionVisible && formData.repeatType ? 1 : 0;
+        const repeatTypeToSave = isRepeating ? formData.repeatType : null;
+        const repeatWeekday =
+          isRepeating &&
+          formData.repeatType === 'weekly' &&
+          formData.selectedWeekdays.length > 0
+            ? JSON.stringify(formData.selectedWeekdays)
+            : null;
+        const repeatDayOfMonth =
+          isRepeating && formData.repeatType === 'monthly' && dueDate
+            ? Number(dueDate.split('-')[2]) || null
+            : null;
+
+        await db.executeSql(
+          `UPDATE Todo SET
+            title = ?,
+            description = ?,
+            due_date = ?,
+            due_time = ?,
+            is_repeating = ?,
+            repeat_type = ?,
+            repeat_weekday = ?,
+            repeat_day_of_month = ?,
+            alarm_id = ?,
+            alarm_set_id = ?
+          WHERE id = ?;`,
+          [
+            formData.title,
+            null,
+            dueDate,
+            dueTime,
+            isRepeating,
+            repeatTypeToSave,
+            repeatWeekday,
+            repeatDayOfMonth,
+            todo.alarmId,
+            todo.alarmSetId,
+            todo.id,
+          ],
+        );
+
+        if (formData.isDDay) {
+          if (todo.ddayId) {
+            await db.executeSql(`UPDATE Dday SET target_date = ? WHERE id = ?;`, [
+              dueDate,
+              todo.ddayId,
+            ]);
+          } else {
+            const [insertDdayResult] = await db.executeSql(
+              `INSERT INTO Dday (todo_id, target_date) VALUES (?, ?);`,
+              [todo.id, dueDate],
+            );
+            await db.executeSql(`UPDATE Todo SET dday_id = ? WHERE id = ?;`, [
+              insertDdayResult.insertId,
+              todo.id,
+            ]);
+          }
+        } else if (todo.ddayId) {
+          await db.executeSql(`DELETE FROM Dday WHERE id = ?;`, [todo.ddayId]);
+          await db.executeSql(`UPDATE Todo SET dday_id = NULL WHERE id = ?;`, [todo.id]);
+        }
+
+        await loadTodos();
+        closeExpandedCard();
+      } catch (error) {
+        console.error('Failed to save todo item', error);
+        throw error;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [closeExpandedCard, dateValue, loadTodos],
+  );
+
+  const handleCreateTodo = useCallback(
+    async (formData: ScheduleTodoFormData) => {
+      setIsSaving(true);
+      try {
+        const db = await DBManager.getDB();
+        const dueDate = dateValue;
+        const dueTime = formData.isTimePickerVisible
+          ? `${String(formData.timeValue[0]).padStart(2, '0')}:${String(
+              formData.timeValue[1],
+            ).padStart(2, '0')}`
+          : null;
+
+        const isRepeating = formData.isRepeatSectionVisible && formData.repeatType ? 1 : 0;
+        const repeatTypeToSave = isRepeating ? formData.repeatType : null;
+        const repeatWeekday =
+          isRepeating &&
+          formData.repeatType === 'weekly' &&
+          formData.selectedWeekdays.length > 0
+            ? JSON.stringify(formData.selectedWeekdays)
+            : null;
+        const repeatDayOfMonth =
+          isRepeating && formData.repeatType === 'monthly' && dueDate
+            ? Number(dueDate.split('-')[2]) || null
+            : null;
+
+        const [insertTodoResult] = await db.executeSql(
+          `INSERT INTO Todo (
+            title,
+            description,
+            due_date,
+            due_time,
+            is_repeating,
+            repeat_type,
+            repeat_weekday,
+            repeat_day_of_month,
+            dday_id,
+            alarm_id,
+            alarm_set_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          [
+            formData.title,
+            null,
+            dueDate,
+            dueTime,
+            isRepeating,
+            repeatTypeToSave,
+            repeatWeekday,
+            repeatDayOfMonth,
+            null,
+            null,
+            null,
+          ],
+        );
+
+        const todoId = insertTodoResult.insertId;
+        if (formData.isDDay && todoId) {
+          const [insertDdayResult] = await db.executeSql(
+            `INSERT INTO Dday (todo_id, target_date) VALUES (?, ?);`,
+            [todoId, dueDate],
+          );
+          await db.executeSql(`UPDATE Todo SET dday_id = ? WHERE id = ?;`, [
+            insertDdayResult.insertId,
+            todoId,
+          ]);
+        }
+
+        await loadTodos();
+      } catch (error) {
+        console.error('Failed to create todo item', error);
+        throw error;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [dateValue, loadTodos],
+  );
+
+  const handleNewCardCancel = useCallback(() => {
+    // 화면 차원에서 별도 처리할 내용이 없어도 콜백은 유지합니다.
+  }, []);
+
+  const formattedDateLabel = useMemo(() => {
+    const date = dayjs(dateValue);
+    if (!date.isValid()) {
+      return dateValue;
+    }
+    return date.format('YYYY년 MM월 DD일');
+  }, [dateValue]);
 
   return (
-    <View style={{flex:1}}>
-    <View style={styles.container}>
-      <TextInput placeholder="일정을 입력하세요." style={{backgroundColor:"#e7e7e7ff", borderRadius:15, padding:16, marginBottom:10}} onChangeText={(text)=> setTitle(text)}></TextInput>
-      <View style={{flexDirection: 'row',height:50}}>
-        <IconToggleButton 
-          IconComponent={MaterialCommunityIcons}
-          iconName="repeat-off"
-          onToggleIconName='repeat'
-          iconColor="black"
-          iconSize={40}
-          onToggle={(isChecked) => {setIsRepeatSectionVisible(isChecked)}}>
-        </IconToggleButton>
-
-        <IconToggleButton 
-          IconComponent={MaterialCommunityIcons}
-          iconName="clock-outline"
-          onToggleIconName='clock'
-          iconColor="black"
-          iconSize={40}
-          onToggle={(isChecked) => {setIsTimePickerVisible(isChecked)}}>
-        </IconToggleButton>
-
-        <TextToggleButton
-          boxStyle={{height:40, paddingLeft:10, paddingRight:10, borderRadius:14}}
-          textStyle={{fontSize:20,fontWeight:'bold'}}
-          title="D-DAY"
-          onToggle={(isChecked)=>{setIsDDay(isChecked)}}
-          color="#000"
-          onToggleColor="#FFF"
-          onToggleBackgroundColor="#000">
-        </TextToggleButton>
-
-        
-      </View>
-      {isTimePickerVisible ? (<View style={{flexDirection: 'row'}}>
-        <WheelPicker
-          data={hourData}
-          value={timeValue}
-          onValueChanged={({ item: { value } }) => setTimeValue(value)}
-          visibleItemCount={3}
-          overlayItemStyle={{borderRadius:0, borderTopLeftRadius:10, borderBottomLeftRadius:10}}
-        />
-        <WheelPicker
-          data={minuteData}
-          value={timeValue}
-          onValueChanged={({ item: { value } }) => setTimeValue(value)}
-          visibleItemCount={3}
-          overlayItemStyle={{borderRadius:0, borderTopRightRadius:10, borderBottomRightRadius:10}}
-        />
-      </View>) : ""}
-    
-      {isRepeatSectionVisible && (
-        <View style={styles.repeatContainer}>
-          <Text style={styles.sectionTitle}>반복 설정</Text>
-          <View style={styles.buttonGroup}>
-            <TouchableOpacity 
-              style={[styles.optionButton, repeatType === 'weekly' && styles.optionButtonSelected]} 
-              onPress={() => setRepeatType('weekly')}>
-              <Text style={[styles.optionButtonText, repeatType === 'weekly' && styles.optionButtonTextSelected]}>요일</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.optionButton, repeatType === 'monthly' && styles.optionButtonSelected]} 
-              onPress={() => setRepeatType('monthly')}>
-              <Text style={[styles.optionButtonText, repeatType === 'monthly' && styles.optionButtonTextSelected]}>월</Text>
-            </TouchableOpacity>
-          </View>
-          {repeatType === 'weekly' && (
-            <View style={styles.weekdaySelector}>
-              {['일', '월', '화', '수', '목', '금', '토'].map((day, index) => (
-                <TouchableOpacity 
-                  key={day} 
-                  style={[styles.weekdayButton, selectedWeekdays.includes(index) && styles.weekdayButtonSelected]}
-                  onPress={() => {
-                    const newSelection = [...selectedWeekdays];
-                    if (newSelection.includes(index)) {
-                      // Remove day
-                      setSelectedWeekdays(newSelection.filter(i => i !== index));
-                    } else {
-                      // Add day
-                      newSelection.push(index);
-                      setSelectedWeekdays(newSelection.sort((a, b) => a - b));
-                    }
-                  }}>
-                  <Text style={[styles.weekdayButtonText, selectedWeekdays.includes(index) && styles.weekdayButtonTextSelected]}>{day}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+    <View style={styles.screen}>
+      <Text style={styles.dateLabel}>{formattedDateLabel}</Text>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.todoListContainer}>
+          <Text style={styles.sectionTitle}>해당 날짜의 일정</Text>
+          {isLoading ? (
+            <Text style={styles.helperText}>일정을 불러오는 중입니다...</Text>
+          ) : (
+            <>
+              {todos.length === 0 ? (
+                <Text style={styles.helperText}>등록된 일정이 없습니다.</Text>
+              ) : null}
+              {todos.map(todo => {
+                const isExpanded = expandedCardId === todo.id;
+                return (
+                  <ScheduleTodoCard
+                    key={todo.id}
+                    isExpanded={isExpanded}
+                    onPressHeader={() => handleTodoCardPress(todo)}
+                    isSaving={isSaving}
+                    initialData={todo}
+                    onCancel={closeExpandedCard}
+                    onSave={formData => handleSaveExisting(todo, formData)}
+                  />
+                );
+              })}
+              <ScheduleTodoCard
+                key={`new-${dateValue}`}
+                mode="new"
+                isExpanded
+                isSaving={isSaving}
+                onSave={handleCreateTodo}
+                onCancel={handleNewCardCancel}
+              />
+            </>
           )}
         </View>
-      )}
-
-      <Button title="추가" onPress={ async () =>  {
-        console.log("ㅎㅇ")
-        const db = await DBManager.getDB()
-        await db.executeSql(
-          `INSERT INTO Todo (title) VALUES (?);`,
-          [title])
-        const [result] = await db.executeSql(`
-        SELECT * FROM Todo;
-        `)
-        for (let i = 0; i < result.rows.length; i++) {
-          console.log(i)
-          console.log(result.rows.item(i));
-}
-}} />
-    </View>
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    padding:20,
-    backgroundColor: '#ffffffff',
-    margin:20,
-    borderRadius: 20,
-    maxHeight:430
+  screen: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
   },
-  // Repeat Section Styles
-  repeatContainer: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+  dateLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    color: '#212121',
+  },
+  scrollContainer: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  todoListContainer: {
+    gap: 16,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 10,
+    color: '#212121',
   },
-  buttonGroup: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 10,
-  },
-  optionButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  optionButtonSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  optionButtonText: {
-    color: '#333',
-  },
-  optionButtonTextSelected: {
-    color: '#fff',
-  },
-  weekdaySelector: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  weekdayButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  weekdayButtonSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  weekdayButtonText: {
-    color: '#333',
-  },
-  weekdayButtonTextSelected: {
-    color: '#fff',
+  helperText: {
+    fontSize: 14,
+    color: '#757575',
   },
 });
 
