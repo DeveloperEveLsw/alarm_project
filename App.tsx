@@ -1,11 +1,9 @@
 import { StatusBar, useColorScheme } from 'react-native';
-import {
-  SafeAreaView,
-  SafeAreaProvider
-} from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { NavigationContainer, RouteProp } from '@react-navigation/native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import HomeScreen from './screens/HomeScreen';
 import CalendarScreen from './screens/CalendarScreen';
 import SubScreenTwo from './screens/SubScreenTwo';
@@ -17,12 +15,13 @@ import DDayScreen from './screens/DDayScreen';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 
-import {RootStackParamList} from './types/navigation.types'
+import { RootStackParamList } from './types/navigation.types';
 
 dayjs.locale('ko');
 
+const queryClient = new QueryClient();
+
 function MainTap() {
-  
   const Tab = createBottomTabNavigator();
 
   return (
@@ -37,10 +36,11 @@ function MainTap() {
         },
         tabBarActiveTintColor: '#0091EA',
         tabBarInactiveTintColor: 'gray',
-      }}>
+      }}
+    >
       <Tab.Screen name="알람" component={HomeScreen} />
-      <Tab.Screen name="달력" component={CalendarScreen} />
-      <Tab.Screen name="공유" component={SubScreenTwo} />
+      <Tab.Screen name="캘린더" component={CalendarScreen} />
+      <Tab.Screen name="설정" component={SubScreenTwo} />
     </Tab.Navigator>
   );
 }
@@ -56,29 +56,32 @@ function App() {
   const Stack = createNativeStackNavigator<RootStackParamList>();
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={{flex:1}}>
-        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-        <NavigationContainer>
-          <Stack.Navigator>
-            <Stack.Screen name="Main" component={MainTap} options={{ headerShown: false }}/>
-            <Stack.Screen 
-              name="ScheduleEditor" 
-              component={ScheduleEditorScreen} 
-              options={({ route, navigation }: ScheduleEditorScreenOptionsProps) => ({
-                header: () => {
-                  const title = dayjs(route.params.date).format('M월 D일 (ddd)');
-                  return <CustomHeader title={title} navigation={navigation} />;
-                },
-              })}
-            />
-            <Stack.Screen name="Todo" component={TodoScreen} options={{ title: '할 일' }} />
-            <Stack.Screen name="Alarm" component={AlarmScreen} options={{ title: '알람' }} />
-            <Stack.Screen name="DDay" component={DDayScreen} options={{ title: 'D-DAY' }} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </SafeAreaView >
-    </SafeAreaProvider>
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <SafeAreaView style={{ flex: 1 }}>
+          <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+          <NavigationContainer>
+            <Stack.Navigator>
+              <Stack.Screen name="Main" component={MainTap} options={{ headerShown: false }} />
+              <Stack.Screen
+                name="ScheduleEditor"
+                component={ScheduleEditorScreen}
+                options={({ route, navigation }: ScheduleEditorScreenOptionsProps) => ({
+                  header: () => {
+                    const title = dayjs(route.params.date).format('M월 D일(ddd)');
+                    return <CustomHeader title={title} navigation={navigation} />;
+                  },
+                })}
+              />
+              <Stack.Screen name="Todo" component={TodoScreen} options={{ title: '할 일' }} />
+              <Stack.Screen name="Alarm" component={AlarmScreen} options={{ title: '알람' }} />
+              <Stack.Screen name="DDay" component={DDayScreen} options={{ title: 'D-DAY' }} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </QueryClientProvider>
   );
 }
+
 export default App;

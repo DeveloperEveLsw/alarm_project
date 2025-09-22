@@ -3,24 +3,29 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import dayjs from 'dayjs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import ScheduleTodoCard, {
-  ScheduleTodo,
-  ScheduleTodoFormData,
-} from '../Components/ScheduleTodoCard';
-import { DBManager } from '../services/db/db';
+import ScheduleTodoCard from '../Components/ScheduleTodoCard';
+import type { ScheduleTodo, ScheduleTodoFormData } from '../types/todo.types';
+import { todoService } from '../services/todoService';
 import { RootStackParamList } from '../types/navigation.types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ScheduleEditor'>;
 
 type ExpandedCardId = number | null;
+type ActiveMutationTarget = number | 'new' | null;
+
+type UpdateTodoVariables = {
+  todo: ScheduleTodo;
+  formData: ScheduleTodoFormData;
+};
 
 const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
   const [dateValue, setDateValue] = useState(route.params.date);
-  const [todos, setTodos] = useState<ScheduleTodo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [expandedCardId, setExpandedCardId] = useState<ExpandedCardId>(null);
+  const [activeMutationTarget, setActiveMutationTarget] = useState<ActiveMutationTarget>(null);
+
+  const queryClient = useQueryClient();
 
   const closeExpandedCard = useCallback(() => {
     setExpandedCardId(null);
@@ -31,92 +36,10 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
     closeExpandedCard();
   }, [closeExpandedCard, route.params.date]);
 
-  const loadTodos = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const db = await DBManager.getDB();
-      const [result] = await db.executeSql('SELECT * FROM Todo;');
-
-      const parsed: ScheduleTodo[] = [];
-      for (let index = 0; index < result.rows.length; index += 1) {
-        const row = result.rows.item(index);
-
-        let repeatWeekdays: number[] | null = null;
-        if (typeof row.repeat_weekday === 'string') {
-          try {
-            const parsedValue = JSON.parse(row.repeat_weekday);
-            if (Array.isArray(parsedValue)) {
-              repeatWeekdays = parsedValue
-                .map((value: unknown) => Number(value))
-                .filter(value => Number.isInteger(value) && value >= 0 && value <= 6);
-            }
-          } catch (error) {
-            console.warn('Failed to parse repeat_weekday JSON', row.id, error);
-          }
-        }
-
-        parsed.push({
-          id: Number(row.id),
-          title: typeof row.title === 'string' ? row.title : '',
-          dueDate: typeof row.due_date === 'string' ? row.due_date : null,
-          dueTime: typeof row.due_time === 'string' ? row.due_time : null,
-          isRepeating: Number(row.is_repeating) === 1,
-          repeatType:
-            row.repeat_type === 'weekly' || row.repeat_type === 'monthly'
-              ? row.repeat_type
-              : null,
-          repeatWeekdays,
-          repeatDayOfMonth:
-            row.repeat_day_of_month !== null && row.repeat_day_of_month !== undefined
-              ? Number(row.repeat_day_of_month)
-              : null,
-          ddayId:
-            row.dday_id !== null && row.dday_id !== undefined
-              ? Number(row.dday_id)
-              : null,
-          alarmId:
-            row.alarm_id !== null && row.alarm_id !== undefined
-              ? Number(row.alarm_id)
-              : null,
-          alarmSetId:
-            row.alarm_set_id !== null && row.alarm_set_id !== undefined
-              ? Number(row.alarm_set_id)
-              : null,
-        });
-      }
-
-      const targetDate = dateValue;
-      const targetDay = dayjs(targetDate);
-      const weekday = targetDay.day();
-      const dayOfMonth = targetDay.date();
-
-      const filtered = parsed.filter(todo => {
-        if (todo.isRepeating) {
-          if (todo.repeatType === 'weekly' && todo.repeatWeekdays) {
-            return todo.repeatWeekdays.includes(weekday);
-          }
-
-          if (todo.repeatType === 'monthly' && todo.repeatDayOfMonth !== null) {
-            return todo.repeatDayOfMonth === dayOfMonth;
-          }
-
-          return false;
-        }
-
-        return todo.dueDate === targetDate;
-      });
-
-      setTodos(filtered);
-    } catch (error) {
-      console.error('Failed to load todos for editor', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [dateValue]);
-
-  useEffect(() => {
-    loadTodos();
-  }, [loadTodos]);
+  const todosQuery = useQuery<ScheduleTodo[]>({
+    queryKey: ['todos', dateValue],
+    queryFn: () => todoService.getTodosForDate(dateValue),
+  });
 
   const handleTodoCardPress = useCallback(
     (todo: ScheduleTodo) => {
@@ -129,171 +52,64 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
     [closeExpandedCard, expandedCardId],
   );
 
-  const handleSaveExisting = useCallback(
-    async (todo: ScheduleTodo, formData: ScheduleTodoFormData) => {
-      setIsSaving(true);
-      try {
-        const db = await DBManager.getDB();
-        const dueDate = dateValue;
-        const dueTime = formData.isTimePickerVisible
-          ? `${String(formData.timeValue[0]).padStart(2, '0')}:${String(
-              formData.timeValue[1],
-            ).padStart(2, '0')}`
-          : null;
-
-        const isRepeating = formData.isRepeatSectionVisible && formData.repeatType ? 1 : 0;
-        const repeatTypeToSave = isRepeating ? formData.repeatType : null;
-        const repeatWeekday =
-          isRepeating &&
-          formData.repeatType === 'weekly' &&
-          formData.selectedWeekdays.length > 0
-            ? JSON.stringify(formData.selectedWeekdays)
-            : null;
-        const repeatDayOfMonth =
-          isRepeating && formData.repeatType === 'monthly' && dueDate
-            ? Number(dueDate.split('-')[2]) || null
-            : null;
-
-        await db.executeSql(
-          `UPDATE Todo SET
-            title = ?,
-            description = ?,
-            due_date = ?,
-            due_time = ?,
-            is_repeating = ?,
-            repeat_type = ?,
-            repeat_weekday = ?,
-            repeat_day_of_month = ?,
-            alarm_id = ?,
-            alarm_set_id = ?
-          WHERE id = ?;`,
-          [
-            formData.title,
-            null,
-            dueDate,
-            dueTime,
-            isRepeating,
-            repeatTypeToSave,
-            repeatWeekday,
-            repeatDayOfMonth,
-            todo.alarmId,
-            todo.alarmSetId,
-            todo.id,
-          ],
-        );
-
-        if (formData.isDDay) {
-          if (todo.ddayId) {
-            await db.executeSql(`UPDATE Dday SET target_date = ? WHERE id = ?;`, [
-              dueDate,
-              todo.ddayId,
-            ]);
-          } else {
-            const [insertDdayResult] = await db.executeSql(
-              `INSERT INTO Dday (todo_id, target_date) VALUES (?, ?);`,
-              [todo.id, dueDate],
-            );
-            await db.executeSql(`UPDATE Todo SET dday_id = ? WHERE id = ?;`, [
-              insertDdayResult.insertId,
-              todo.id,
-            ]);
-          }
-        } else if (todo.ddayId) {
-          await db.executeSql(`DELETE FROM Dday WHERE id = ?;`, [todo.ddayId]);
-          await db.executeSql(`UPDATE Todo SET dday_id = NULL WHERE id = ?;`, [todo.id]);
-        }
-
-        await loadTodos();
-        closeExpandedCard();
-      } catch (error) {
-        console.error('Failed to save todo item', error);
-        throw error;
-      } finally {
-        setIsSaving(false);
-      }
+  const updateTodoMutation = useMutation<void, Error, UpdateTodoVariables>({
+    mutationFn: ({ todo, formData }: UpdateTodoVariables) =>
+      todoService.updateTodo({
+        todo,
+        formData,
+        targetDate: dateValue,
+      }),
+    onMutate: ({ todo }: UpdateTodoVariables) => {
+      setActiveMutationTarget(todo.id);
     },
-    [closeExpandedCard, dateValue, loadTodos],
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['todos'] });
+      closeExpandedCard();
+    },
+    onError: (error: unknown) => {
+      console.error('Failed to save todo item', error);
+    },
+    onSettled: () => {
+      setActiveMutationTarget(null);
+    },
+  });
+
+  const createTodoMutation = useMutation<void, Error, ScheduleTodoFormData>({
+    mutationFn: (formData: ScheduleTodoFormData) =>
+      todoService.createTodo({
+        formData,
+        targetDate: dateValue,
+      }),
+    onMutate: () => {
+      setActiveMutationTarget('new');
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['todos'] });
+    },
+    onError: (error: unknown) => {
+      console.error('Failed to create todo item', error);
+    },
+    onSettled: () => {
+      setActiveMutationTarget(null);
+    },
+  });
+
+  const todos = todosQuery.data ?? [];
+  const isLoading = todosQuery.isLoading;
+
+  const handleSaveExisting = useCallback(
+    (todo: ScheduleTodo, formData: ScheduleTodoFormData) =>
+      updateTodoMutation.mutateAsync({ todo, formData }),
+    [updateTodoMutation],
   );
 
   const handleCreateTodo = useCallback(
-    async (formData: ScheduleTodoFormData) => {
-      setIsSaving(true);
-      try {
-        const db = await DBManager.getDB();
-        const dueDate = dateValue;
-        const dueTime = formData.isTimePickerVisible
-          ? `${String(formData.timeValue[0]).padStart(2, '0')}:${String(
-              formData.timeValue[1],
-            ).padStart(2, '0')}`
-          : null;
-
-        const isRepeating = formData.isRepeatSectionVisible && formData.repeatType ? 1 : 0;
-        const repeatTypeToSave = isRepeating ? formData.repeatType : null;
-        const repeatWeekday =
-          isRepeating &&
-          formData.repeatType === 'weekly' &&
-          formData.selectedWeekdays.length > 0
-            ? JSON.stringify(formData.selectedWeekdays)
-            : null;
-        const repeatDayOfMonth =
-          isRepeating && formData.repeatType === 'monthly' && dueDate
-            ? Number(dueDate.split('-')[2]) || null
-            : null;
-
-        const [insertTodoResult] = await db.executeSql(
-          `INSERT INTO Todo (
-            title,
-            description,
-            due_date,
-            due_time,
-            is_repeating,
-            repeat_type,
-            repeat_weekday,
-            repeat_day_of_month,
-            dday_id,
-            alarm_id,
-            alarm_set_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-          [
-            formData.title,
-            null,
-            dueDate,
-            dueTime,
-            isRepeating,
-            repeatTypeToSave,
-            repeatWeekday,
-            repeatDayOfMonth,
-            null,
-            null,
-            null,
-          ],
-        );
-
-        const todoId = insertTodoResult.insertId;
-        if (formData.isDDay && todoId) {
-          const [insertDdayResult] = await db.executeSql(
-            `INSERT INTO Dday (todo_id, target_date) VALUES (?, ?);`,
-            [todoId, dueDate],
-          );
-          await db.executeSql(`UPDATE Todo SET dday_id = ? WHERE id = ?;`, [
-            insertDdayResult.insertId,
-            todoId,
-          ]);
-        }
-
-        await loadTodos();
-      } catch (error) {
-        console.error('Failed to create todo item', error);
-        throw error;
-      } finally {
-        setIsSaving(false);
-      }
-    },
-    [dateValue, loadTodos],
+    (formData: ScheduleTodoFormData) => createTodoMutation.mutateAsync(formData),
+    [createTodoMutation],
   );
 
   const handleNewCardCancel = useCallback(() => {
-    // 화면 차원에서 별도 처리할 내용이 없어도 콜백은 유지합니다.
+    // 화면 이탈에서 별도로 처리할 내용이 없어 빈 구현을 유지합니다.
   }, []);
 
   const formattedDateLabel = useMemo(() => {
@@ -317,14 +133,16 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
               {todos.length === 0 ? (
                 <Text style={styles.helperText}>등록된 일정이 없습니다.</Text>
               ) : null}
-              {todos.map(todo => {
+              {todos.map((todo: ScheduleTodo) => {
                 const isExpanded = expandedCardId === todo.id;
+                const isSavingExisting =
+                  updateTodoMutation.isPending && activeMutationTarget === todo.id;
                 return (
                   <ScheduleTodoCard
                     key={todo.id}
                     isExpanded={isExpanded}
                     onPressHeader={() => handleTodoCardPress(todo)}
-                    isSaving={isSaving}
+                    isSaving={isSavingExisting}
                     initialData={todo}
                     onCancel={closeExpandedCard}
                     onSave={formData => handleSaveExisting(todo, formData)}
@@ -335,7 +153,7 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
                 key={`new-${dateValue}`}
                 mode="new"
                 isExpanded
-                isSaving={isSaving}
+                isSaving={createTodoMutation.isPending && activeMutationTarget === 'new'}
                 onSave={handleCreateTodo}
                 onCancel={handleNewCardCancel}
               />

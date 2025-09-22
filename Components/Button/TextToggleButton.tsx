@@ -45,20 +45,26 @@ const TextToggleButton = ({
     onToggle(nextValue);
   };
 
-  const containerStyle = [
-    { justifyContent: 'center', alignContent: 'center', alignItems: 'center' },
+  const baseContainerStyle: ViewStyle = {
+    justifyContent: 'center',
+    alignContent: 'center',
+    alignItems: 'center',
+  };
+
+  const containerStyle: StyleProp<ViewStyle> = [
+    baseContainerStyle,
     boxStyle,
-    isChecked ? { backgroundColor: onToggleBackgroundColor } : {},
+    isChecked ? { backgroundColor: onToggleBackgroundColor } : null,
   ];
 
-  const textStyles = [
+  const computedTextStyle: StyleProp<TextStyle> = [
     textStyle,
     { color: isChecked ? onToggleColor : color },
   ];
 
   return (
     <TouchableOpacity activeOpacity={1} onPress={handlePress} style={containerStyle}>
-      <Text style={textStyles}>{title}</Text>
+      <Text style={computedTextStyle}>{title}</Text>
     </TouchableOpacity>
   );
 };

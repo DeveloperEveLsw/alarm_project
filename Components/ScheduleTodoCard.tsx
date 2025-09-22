@@ -1,38 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import WheelPicker from '@quidone/react-native-wheel-picker';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import IconToggleButton from './Button/IconToggleButton';
 import TextToggleButton from './Button/TextToggleButton';
+import type { ScheduleTodo, ScheduleTodoFormData } from '../types/todo.types';
+export type { ScheduleTodo, ScheduleTodoFormData } from '../types/todo.types';
 
-const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+const WEEKDAY_LABELS = ['\uC6D4', '\uD654', '\uC218', '\uBAA9', '\uAE08', '\uD1A0', '\uC77C'];
 
 type InternalFormState = {
-  title: string;
-  timeValue: [number, number];
-  isTimePickerVisible: boolean;
-  isRepeatSectionVisible: boolean;
-  repeatType: 'weekly' | 'monthly' | null;
-  selectedWeekdays: number[];
-  isDDay: boolean;
-};
-
-export type ScheduleTodo = {
-  id: number;
-  title: string;
-  dueDate: string | null;
-  dueTime: string | null;
-  isRepeating: boolean;
-  repeatType: 'weekly' | 'monthly' | null;
-  repeatWeekdays: number[] | null;
-  repeatDayOfMonth: number | null;
-  ddayId: number | null;
-  alarmId: number | null;
-  alarmSetId: number | null;
-};
-
-export type ScheduleTodoFormData = {
   title: string;
   timeValue: [number, number];
   isTimePickerVisible: boolean;
@@ -87,7 +65,7 @@ const buildInitialFormState = (initialData?: ScheduleTodo): InternalFormState =>
 
 const formatTodoMeta = (todo?: ScheduleTodo): string => {
   if (!todo) {
-    return '새로운 할 일을 등록하려면 내용을 입력해주세요.';
+    return '\uC77C\uC815\uC744 \uC0DD\uC131\uD558\uB824\uBA74 \uB0B4\uC6A9\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694.';
   }
 
   if (todo.isRepeating) {
@@ -96,19 +74,19 @@ const formatTodoMeta = (todo?: ScheduleTodo): string => {
         .map(index => WEEKDAY_LABELS[index] ?? '')
         .filter(Boolean)
         .join(', ');
-      return labels ? `매주 ${labels}` : '반복 일정';
+      return labels ? `\uB9E4\uC8FC ${labels}` : '\uBC18\uBCF5 \uC77C\uC815';
     }
     if (todo.repeatType === 'monthly' && todo.repeatDayOfMonth !== null) {
-      return `매월 ${todo.repeatDayOfMonth}일`;
+      return `\uB9E4\uC6D4 ${todo.repeatDayOfMonth}\uC77C`;
     }
-    return '반복 일정';
+    return '\uBC18\uBCF5 \uC77C\uC815';
   }
 
   if (todo.dueDate) {
     return todo.dueTime ? `${todo.dueDate} ${todo.dueTime}` : todo.dueDate;
   }
 
-  return '날짜 없음';
+  return '\uB0A0\uC9DC \uC5C6\uC74C';
 };
 
 const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
@@ -131,12 +109,12 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
   const [isDDay, setIsDDay] = useState(false);
 
   const hourData = useMemo(
-    () => [...Array(24).keys()].map(value => ({ label: `${value}시`, value })),
+    () => [...Array(24).keys()].map(value => ({ label: `${String(value).padStart(2, '0')}\uC2DC`, value })),
     [],
   );
 
   const minuteData = useMemo(
-    () => [...Array(60).keys()].map(value => ({ label: `${value}분`, value })),
+    () => [...Array(60).keys()].map(value => ({ label: `${String(value).padStart(2, '0')}\uBD84`, value })),
     [],
   );
 
@@ -202,7 +180,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
   const handlePressSave = useCallback(async () => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      console.warn('할 일을 입력해주세요.');
+      console.warn('\uC81C\uBAA9\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694.');
       return;
     }
 
@@ -249,9 +227,9 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
       return headerTitle;
     }
     if (initialData) {
-      return initialData.title || '제목 없음';
+      return initialData.title || '\uC81C\uBAA9 \uC5C6\uC74C';
     }
-    return '새 일정 추가';
+    return '\uC0C8 \uC77C\uC815 \uCD94\uAC00';
   }, [headerTitle, initialData]);
 
   const computedHeaderMeta = useMemo(() => {
@@ -291,7 +269,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
       {isExpanded ? (
         <View style={styles.formBody}>
           <TextInput
-            placeholder="할 일을 입력해주세요."
+            placeholder="\uC81C\uBAA9\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694."
             style={styles.titleInput}
             value={title}
             onChangeText={setTitle}
@@ -330,32 +308,36 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
             />
           </View>
 
-          {isTimePickerVisible ? (
-            <View style={styles.timePickerRow}>
-              <WheelPicker
-                data={hourData}
-                value={timeValue[0]}
-                onValueChanged={({ item: { value } }) =>
-                  setTimeValue([value, timeValue[1]])
-                }
-                visibleItemCount={3}
-                overlayItemStyle={styles.hourOverlay}
-              />
-              <WheelPicker
-                data={minuteData}
-                value={timeValue[1]}
-                onValueChanged={({ item: { value } }) =>
-                  setTimeValue([timeValue[0], value])
-                }
-                visibleItemCount={3}
-                overlayItemStyle={styles.minuteOverlay}
-              />
-            </View>
-          ) : null}
+          <View
+            style={[
+              styles.timePickerRow,
+              isTimePickerVisible ? null : styles.hiddenTimePicker,
+            ]}
+            pointerEvents={isTimePickerVisible ? 'auto' : 'none'}
+          >
+            <WheelPicker
+              data={hourData}
+              value={timeValue[0]}
+              onValueChanged={({ item: { value } }) =>
+                setTimeValue([value, timeValue[1]])
+              }
+              visibleItemCount={3}
+              overlayItemStyle={styles.hourOverlay}
+            />
+            <WheelPicker
+              data={minuteData}
+              value={timeValue[1]}
+              onValueChanged={({ item: { value } }) =>
+                setTimeValue([timeValue[0], value])
+              }
+              visibleItemCount={3}
+              overlayItemStyle={styles.minuteOverlay}
+            />
+          </View>
 
           {isRepeatSectionVisible ? (
             <View style={styles.repeatContainer}>
-              <Text style={styles.repeatTitle}>반복 설정</Text>
+              <Text style={styles.repeatTitle}>\uBC18\uBCF5 \uC124\uC815</Text>
               <View style={styles.buttonGroup}>
                 <TouchableOpacity
                   style={[
@@ -370,7 +352,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
                       repeatType === 'weekly' && styles.optionButtonTextSelected,
                     ]}
                   >
-                    주간
+                    \uC8FC\uAC04
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -386,7 +368,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
                       repeatType === 'monthly' && styles.optionButtonTextSelected,
                     ]}
                   >
-                    월간
+                    \uC6D4\uAC04
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -411,6 +393,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
                 </View>
               ) : null}
             </View>
+
           ) : null}
 
           <View style={styles.formActions}>
@@ -419,7 +402,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
               onPress={handlePressCancel}
               disabled={isSaving}
             >
-              <Text style={styles.secondaryButtonText}>취소</Text>
+              <Text style={styles.secondaryButtonText}>\uCDE8\uC18C</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -431,7 +414,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
               onPress={handlePressSave}
               disabled={isSaving}
             >
-              <Text style={styles.primaryButtonText}>저장</Text>
+              <Text style={styles.primaryButtonText}>\uC800\uC7A5</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -517,6 +500,9 @@ const styles = StyleSheet.create({
   timePickerRow: {
     flexDirection: 'row',
     marginBottom: 16,
+  },
+  hiddenTimePicker: {
+    display: 'none',
   },
   hourOverlay: {
     borderRadius: 0,
@@ -626,3 +612,5 @@ const styles = StyleSheet.create({
 });
 
 export default ScheduleTodoCard;
+
+

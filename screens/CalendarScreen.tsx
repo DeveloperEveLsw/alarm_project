@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import { Dimensions, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -6,98 +6,25 @@ import { CalendarList, DateData } from 'react-native-calendars';
 import dayjs from 'dayjs';
 
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useQuery } from '@tanstack/react-query';
 
-import { DBManager } from '../services/db/db';
 import { RootStackParamList } from '../types/navigation.types';
+import { todoService } from '../services/todoService';
+import type { ScheduleTodo } from '../types/todo.types';
 
 type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
-type CalendarTodo = {
-  id: number;
-  title: string;
-  dueDate: string | null;
-  isRepeating: boolean;
-  repeatType: 'weekly' | 'monthly' | null;
-  repeatWeekdays: number[] | null;
-  repeatDayOfMonth: number | null;
-};
-
 const CalendarScreen: React.FC = () => {
-  const [currentDateLabel, setCurrentDateLabel] = useState('2025년 9월');
-  const [todos, setTodos] = useState<CalendarTodo[]>([]);
+  const [currentDateLabel, setCurrentDateLabel] = useState('2025\uB144 9\uC6D4');
+  const { data: todos = [] } = useQuery<ScheduleTodo[]>({
+    queryKey: ['todos', 'all'],
+    queryFn: todoService.getAllTodos,
+  });
 
   const SCREEN_WIDTH = Dimensions.get('window').width;
   const SCREEN_HEIGHT = Dimensions.get('window').height;
 
   const navigation = useNavigation<CalendarScreenNavigationProp>();
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchData = async () => {
-      try {
-        const db = await DBManager.getDB();
-        const [result] = await db.executeSql('SELECT * FROM Todo;');
-
-        if (!isMounted) {
-          return;
-        }
-
-        const parsed: CalendarTodo[] = [];
-
-        for (let index = 0; index < result.rows.length; index += 1) {
-          const row = result.rows.item(index);
-
-          let repeatWeekdays: number[] | null = null;
-          if (typeof row.repeat_weekday === 'string') {
-            try {
-              const parsedValue = JSON.parse(row.repeat_weekday);
-              if (Array.isArray(parsedValue)) {
-                repeatWeekdays = parsedValue
-                  .map((value: unknown) => Number(value))
-                  .filter(value => Number.isInteger(value) && value >= 0 && value <= 6);
-              }
-            } catch (error) {
-              console.warn('Failed to parse repeat_weekday JSON', row.id, error);
-            }
-          }
-
-          const repeatDayOfMonth =
-            row.repeat_day_of_month !== null && row.repeat_day_of_month !== undefined
-              ? Number(row.repeat_day_of_month)
-              : null;
-
-          const repeatTypeValue =
-            typeof row.repeat_type === 'string' ? row.repeat_type : null;
-
-          const repeatType: 'weekly' | 'monthly' | null =
-            repeatTypeValue === 'weekly' || repeatTypeValue === 'monthly'
-              ? repeatTypeValue
-              : null;
-
-          parsed.push({
-            id: Number(row.id),
-            title: typeof row.title === 'string' ? row.title : '',
-            dueDate: typeof row.due_date === 'string' ? row.due_date : null,
-            isRepeating: Number(row.is_repeating) === 1,
-            repeatType,
-            repeatWeekdays,
-            repeatDayOfMonth,
-          });
-        }
-
-        setTodos(parsed);
-      } catch (error) {
-        console.error('Failed to load todos for calendar', error);
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const handleDayPress = useCallback(
     (dateString: string) => {
@@ -107,31 +34,7 @@ const CalendarScreen: React.FC = () => {
   );
 
   const getTodosForDate = useCallback(
-    (targetDate: string) => {
-      const targetDay = dayjs(targetDate);
-      if (!targetDay.isValid()) {
-        return [];
-      }
-
-      const weekday = targetDay.day();
-      const dayOfMonth = targetDay.date();
-
-      return todos.filter(todo => {
-        if (todo.isRepeating) {
-          if (todo.repeatType === 'weekly' && todo.repeatWeekdays) {
-            return todo.repeatWeekdays.includes(weekday);
-          }
-
-          if (todo.repeatType === 'monthly' && todo.repeatDayOfMonth !== null) {
-            return todo.repeatDayOfMonth === dayOfMonth;
-          }
-
-          return false;
-        }
-
-        return todo.dueDate === targetDate;
-      });
-    },
+    (targetDate: string) => todoService.filterTodosByDate(todos, targetDate),
     [todos],
   );
 
@@ -147,7 +50,7 @@ const CalendarScreen: React.FC = () => {
         calendarWidth={SCREEN_WIDTH}
         onVisibleMonthsChange={(date: DateData[]) => {
           if (date[0]) {
-            setCurrentDateLabel(`${date[0].year}년 ${date[0].month}월`);
+            setCurrentDateLabel(`${date[0].year}\uB144 ${date[0].month}\uC6D4`);
           }
         }}
         hideExtraDays={false}
@@ -167,10 +70,10 @@ const CalendarScreen: React.FC = () => {
               color: string;
             }
           > = {
-            '2025-03-01': { label: '삼일절', color: '#d32f2f' },
-            '2025-03-03': { label: '대체휴일', color: '#1976d2' },
-            '2025-03-14': { label: '화이트데이', color: '#e91e63' },
-            '2025-03-29': { label: '가족날', color: '#388e3c' },
+            '2025-03-01': { label: '\uC0BC\uC77C\uC808', color: '#d32f2f' },
+            '2025-03-03': { label: '\uC26C\uB294\uB0A0', color: '#1976d2' },
+            '2025-03-14': { label: '\uD558\uC774\uD2B8\uB370\uC774', color: '#e91e63' },
+            '2025-03-29': { label: '\uAC00\uC0C1\uC758\uB0A0', color: '#388e3c' },
           };
 
           const holiday = dateStr ? holidayMap[dateStr] : undefined;
