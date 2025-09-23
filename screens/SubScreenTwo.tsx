@@ -1,9 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StatusBar, StyleSheet, useColorScheme, View, Text, Button, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, Button, ScrollView, SafeAreaView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { DBManager } from '../services/db/db';
-import { ResultSet, SQLiteDatabase } from 'react-native-sqlite-storage';
+import { SQLiteDatabase } from 'react-native-sqlite-storage';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation.types';
+
+type SubScreenTwoNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
 const SubScreenTwo = () => {
+  const navigation = useNavigation<SubScreenTwoNavigationProp>();
   const [db, setDb] = useState<SQLiteDatabase | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [tableData, setTableData] = useState<Record<string, any[]>>({});
@@ -105,6 +111,15 @@ const SubScreenTwo = () => {
         <Button title="Drop All Tables" onPress={handleDropAllTables} color="red" disabled={!db || loading} />
       </View>
 
+      <View style={styles.debugButtonContainer}>
+        <TouchableOpacity 
+          style={styles.debugButton}
+          onPress={() => navigation.navigate('Debug')}
+        >
+          <Text style={styles.debugButtonText}>🔧 위치 기반 알람 디버그</Text>
+        </TouchableOpacity>
+      </View>
+
       {loading && <ActivityIndicator size="large" color="#0000ff" />} 
 
       <ScrollView style={styles.dataContainer} contentContainerStyle={{ paddingBottom: 20 }}>
@@ -172,6 +187,22 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-around',
         marginBottom: 10,
+    },
+    debugButtonContainer: {
+        marginBottom: 10,
+        alignItems: 'center',
+    },
+    debugButton: {
+        backgroundColor: '#2196f3',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    debugButtonText: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: '600',
     },
     dataContainer: {
         flex: 3,

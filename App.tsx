@@ -12,6 +12,7 @@ import CustomHeader from './Components/CustomHeader';
 import TodoScreen from './screens/TodoScreen';
 import AlarmScreen from './screens/AlarmScreen';
 import DDayScreen from './screens/DDayScreen';
+import DebugScreen from './screens/DebugScreen';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 
@@ -76,6 +77,7 @@ function App() {
               <Stack.Screen name="Todo" component={TodoScreen} options={{ title: '할 일' }} />
               <Stack.Screen name="Alarm" component={AlarmScreen} options={{ title: '알람' }} />
               <Stack.Screen name="DDay" component={DDayScreen} options={{ title: 'D-DAY' }} />
+              <Stack.Screen name="Debug" component={DebugScreen} options={{ title: '디버그' }} />
             </Stack.Navigator>
           </NavigationContainer>
         </SafeAreaView>
