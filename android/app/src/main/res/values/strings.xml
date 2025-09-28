@@ -1,3 +1,9 @@
-<resources>
+﻿<resources>
     <string name="app_name">alarm_project</string>
+    <string name="alarm_channel_name_alarms">Morning alarms</string>
+    <string name="alarm_channel_description_alarms">High priority alarms with sound and vibration</string>
+    <string name="alarm_channel_name_silent">Silent alerts</string>
+    <string name="alarm_channel_description_silent">Background updates without audible alert</string>
+    <string name="alarm_notification_title">Alarm ringing</string>
+    <string name="alarm_notification_body">Tap to manage or dismiss this alarm.</string>
 </resources>
