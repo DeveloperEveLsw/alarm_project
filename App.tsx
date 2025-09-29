@@ -1,4 +1,4 @@
-﻿import React, { useEffect } from 'react';
+﻿import React, { useEffect, useRef } from 'react';
 import { Platform, StatusBar, useColorScheme } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -20,6 +20,7 @@ import AlarmPermissionsScreen from './screens/AlarmPermissionsScreen';
 import AlarmMathScreen from './screens/AlarmMathScreen';
 import AlarmShakeScreen from './screens/AlarmShakeScreen';
 import { AlarmEngine } from './alarm/engine';
+import { useAlarmPermissionsStore } from './stores/alarmPermissionsStore';
 import { RootStackParamList } from './types/navigation.types';
 
 dayjs.locale('ko');
@@ -59,6 +60,16 @@ type ScheduleEditorScreenOptionsProps = {
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
   const Stack = createNativeStackNavigator<RootStackParamList>();
+  const hydratePermissions = useAlarmPermissionsStore(state => state.hydratePermissions);
+  const hasHydratedPermissions = useRef(false);
+
+  useEffect(() => {
+    if (hasHydratedPermissions.current) return;
+    hasHydratedPermissions.current = true;
+    hydratePermissions().catch(error => {
+      console.warn('[Permissions] hydrate failed', error);
+    });
+  }, [hydratePermissions]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
