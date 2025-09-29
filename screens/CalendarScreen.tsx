@@ -9,7 +9,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 
 import { RootStackParamList } from '../types/navigation.types';
-import { todoService } from '../services/todoService';
+import { scheduleService } from '../services';
 import type { ScheduleTodo } from '../types/todo.types';
 
 type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Main'>;
@@ -18,7 +18,7 @@ const CalendarScreen: React.FC = () => {
   const [currentDateLabel, setCurrentDateLabel] = useState('2025\uB144 9\uC6D4');
   const { data: todos = [] } = useQuery<ScheduleTodo[]>({
     queryKey: ['todos', 'all'],
-    queryFn: todoService.getAllTodos,
+    queryFn: scheduleService.getAllTodos,
   });
 
   const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -34,7 +34,7 @@ const CalendarScreen: React.FC = () => {
   );
 
   const getTodosForDate = useCallback(
-    (targetDate: string) => todoService.filterTodosByDate(todos, targetDate),
+    (targetDate: string) => scheduleService.filterTodosByDate(todos, targetDate),
     [todos],
   );
 

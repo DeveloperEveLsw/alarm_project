@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import ScheduleTodoCard from '../Components/ScheduleTodoCard';
 import type { ScheduleTodo, ScheduleTodoFormData } from '../types/todo.types';
-import { todoService } from '../services/todoService';
+import { scheduleService } from '../services';
 import { RootStackParamList } from '../types/navigation.types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ScheduleEditor'>;
@@ -38,7 +38,7 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
 
   const todosQuery = useQuery<ScheduleTodo[]>({
     queryKey: ['todos', dateValue],
-    queryFn: () => todoService.getTodosForDate(dateValue),
+    queryFn: () => scheduleService.getTodosForDate(dateValue),
   });
 
   const handleTodoCardPress = useCallback(
@@ -54,7 +54,7 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
 
   const updateTodoMutation = useMutation<void, Error, UpdateTodoVariables>({
     mutationFn: ({ todo, formData }: UpdateTodoVariables) =>
-      todoService.updateTodo({
+      scheduleService.updateTodo({
         todo,
         formData,
         targetDate: dateValue,
@@ -76,7 +76,7 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
 
   const createTodoMutation = useMutation<void, Error, ScheduleTodoFormData>({
     mutationFn: (formData: ScheduleTodoFormData) =>
-      todoService.createTodo({
+      scheduleService.createTodo({
         formData,
         targetDate: dateValue,
       }),

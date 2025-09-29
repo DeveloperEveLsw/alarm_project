@@ -4,5 +4,9 @@ export type RootStackParamList = {
   Todo: undefined;
   Alarm: undefined;
   DDay: undefined;
-  Debug: undefined;
+  TestAlarm: undefined;
+  DBTest: undefined;
+  DBConnectionTest: undefined;
+  SimpleAlarmTest: undefined;
+  AlarmTest: undefined;
 };

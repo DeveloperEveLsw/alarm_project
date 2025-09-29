@@ -1,185 +1,471 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, Modal, FlatList } from 'react-native';
-import LocationAlarmService from '../services/location/LocationAlarmService';
+import { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Alert, Modal, FlatList, TextInput } from 'react-native';
+import { alarmService, scheduleService, initializeDatabase } from '../services';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation.types';
 
-const AlarmCard = ({title,time,toggle}:{title?:string,time:string,toggle:boolean}) => {
+const AlarmCard = ({id, title, time, toggle, onToggle, onDelete}: {
+    id: number;
+    title?: string;
+    time: string;
+    toggle: boolean;
+    onToggle: (id: number) => void;
+    onDelete: (id: number) => void;
+}) => {
     return ( 
     <View style={{backgroundColor:"white", paddingHorizontal: 20, paddingVertical: 25, borderRadius:15, margin:7}}>
-        <View>
-            <Text style={title ? {fontSize:25} : {display:"none"}}>{title}</Text>
-        </View>
-        <View style={{flexDirection:"row"}}>
-            <Text style={{fontSize:15}}>{time}</Text>
-            <Text style={{marginLeft:"auto"}}>{toggle ? "켜짐" : "꺼짐"}</Text>
+        <View style={{flexDirection:"row", justifyContent:"space-between", alignItems:"center"}}>
+            <View style={{flex: 1}}>
+                <Text style={title ? {fontSize:25, fontWeight:"600"} : {display:"none"}}>{title}</Text>
+                <Text style={{fontSize:15, color:"#666"}}>{time}</Text>
+            </View>
+            <View style={{flexDirection:"row", alignItems:"center"}}>
+                <TouchableOpacity 
+                    style={{
+                        backgroundColor: toggle ? "#4CAF50" : "#E0E0E0",
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 15,
+                        marginRight: 10
+                    }}
+                    onPress={() => onToggle(id)}
+                >
+                    <Text style={{color: toggle ? "white" : "#666", fontSize: 12}}>
+                        {toggle ? "켜짐" : "꺼짐"}
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    style={{
+                        backgroundColor: "#f44336",
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 10
+                    }}
+                    onPress={() => onDelete(id)}
+                >
+                    <Text style={{color: "white", fontSize: 12}}>삭제</Text>
+                </TouchableOpacity>
+            </View>
         </View>
     </View>
     )
 }
 
-const LocationAlarmCard = () => {
-    const [destination, setDestination] = useState('');
-    const [isTracking, setIsTracking] = useState(false);
-    const [showDropdown, setShowDropdown] = useState(false);
-    
-    // 테스트용 목적지 목록
-    const testDestinations = [
-        { name: '강남역', lat: 37.497952, lng: 127.027618 },
-        { name: '홍대입구역', lat: 37.557527, lng: 126.925227 },
-        { name: '잠실역', lat: 37.513294, lng: 127.100516 },
-        { name: '명동역', lat: 37.563692, lng: 126.982117 },
-        { name: '신촌역', lat: 37.555239, lng: 126.936893 }
-    ];
+const AddAlarmCard = () => {
+    const [showModal, setShowModal] = useState(false);
+    const [alarmTitle, setAlarmTitle] = useState('');
+    const [alarmTime, setAlarmTime] = useState('');
+    const queryClient = useQueryClient();
 
-    const startLocationAlarm = async () => {
-        if (!destination.trim()) {
-            Alert.alert('알림', '목적지를 입력해주세요.');
-            return;
-        }
-
-        try {
-            // 목적지 이름으로 좌표 찾기
-            const selectedDestination = testDestinations.find(dest => dest.name === destination);
-            const destinationCoords = selectedDestination || {
-                lat: 37.497952,
-                lng: 127.027618,
-                name: destination
-            };
-
-            const result = await LocationAlarmService.startLocationAlarm(destinationCoords);
+    const createAlarmMutation = useMutation({
+        mutationFn: async () => {
+            console.log('🔄 알람 생성 시작:', { alarmTitle, alarmTime });
+            console.log('🔧 alarmService 상태:', alarmService);
+            console.log('🔧 alarmService.databaseService 상태:', (alarmService as any).databaseService);
             
-            if (result.success) {
-                setIsTracking(true);
-                Alert.alert('알림', '위치 기반 알람이 시작되었습니다!');
-            } else {
-                Alert.alert('오류', result.message);
+            if (!alarmTitle.trim() || !alarmTime.trim()) {
+                throw new Error('제목과 시간을 입력해주세요.');
             }
-        } catch (error) {
-            Alert.alert('오류', '알람 설정에 실패했습니다.');
+            
+            try {
+                const result = await alarmService.createAlarm({
+                    time: alarmTime,
+                    title: alarmTitle,
+                    isSystemAlarm: true
+                });
+                console.log('✅ 알람 생성 성공:', result);
+                return result;
+            } catch (error) {
+                console.error('❌ 알람 생성 실패:', error);
+                throw error;
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['alarms'] });
+            setShowModal(false);
+            setAlarmTitle('');
+            setAlarmTime('');
+            Alert.alert('성공', '알람이 추가되었습니다!');
+        },
+        onError: (error) => {
+            console.error('알람 생성 오류:', error);
+            Alert.alert('오류', `알람 생성 실패: ${error.message}`);
         }
-    };
+    });
 
-    const stopLocationAlarm = async () => {
-        await LocationAlarmService.stopLocationAlarm();
-        setIsTracking(false);
-        Alert.alert('알림', '위치 기반 알람이 중지되었습니다.');
+    const handleAddAlarm = () => {
+        createAlarmMutation.mutate();
     };
 
     return (
-        <View style={{backgroundColor:"#e3f2fd", paddingHorizontal: 20, paddingVertical: 25, borderRadius:15, margin:7}}>
-            <Text style={{fontSize:20, fontWeight:"600", marginBottom:15}}>🚌 버스 하차 알림</Text>
-            
+        <>
             <TouchableOpacity
                 style={{
-                    backgroundColor:"white",
-                    padding:15,
-                    borderRadius:8,
-                    marginBottom:15,
-                    flexDirection:"row",
-                    justifyContent:"space-between",
-                    alignItems:"center"
+                    backgroundColor: "#4CAF50",
+                    paddingHorizontal: 20,
+                    paddingVertical: 15,
+                    borderRadius: 15,
+                    margin: 7,
+                    alignItems: "center"
                 }}
-                onPress={() => !isTracking && setShowDropdown(true)}
-                disabled={isTracking}
+                onPress={() => setShowModal(true)}
             >
-                <Text style={{fontSize:16, color: destination ? "#333" : "#999"}}>
-                    {destination || "목적지 선택"}
+                <Text style={{ color: "white", fontSize: 18, fontWeight: "600" }}>
+                    + 알람 추가
                 </Text>
-                <Text style={{fontSize:16, color:"#666"}}>▼</Text>
             </TouchableOpacity>
 
             <Modal
-                visible={showDropdown}
+                visible={showModal}
                 transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowDropdown(false)}
+                animationType="slide"
+                onRequestClose={() => setShowModal(false)}
             >
-                <TouchableOpacity 
-                    style={{flex:1, backgroundColor:"rgba(0,0,0,0.5)", justifyContent:"center", alignItems:"center"}}
-                    onPress={() => setShowDropdown(false)}
-                >
-                    <View style={{backgroundColor:"white", borderRadius:10, padding:20, width:"80%", maxHeight:"50%"}}>
-                        <Text style={{fontSize:18, fontWeight:"600", marginBottom:15, textAlign:"center"}}>목적지 선택</Text>
-                        <FlatList
-                            data={testDestinations}
-                            keyExtractor={(item) => item.name}
-                            renderItem={({item}) => (
-                                <TouchableOpacity
-                                    style={{padding:15, borderBottomWidth:1, borderBottomColor:"#eee"}}
-                                    onPress={() => {
-                                        setDestination(item.name);
-                                        setShowDropdown(false);
-                                    }}
-                                >
-                                    <Text style={{fontSize:16}}>{item.name}</Text>
-                                    <Text style={{fontSize:12, color:"#666", marginTop:2}}>
-                                        위도: {item.lat.toFixed(4)}, 경도: {item.lng.toFixed(4)}
-                                    </Text>
-                                </TouchableOpacity>
-                            )}
+                <View style={{
+                    flex: 1,
+                    backgroundColor: "rgba(0,0,0,0.5)",
+                    justifyContent: "center",
+                    alignItems: "center"
+                }}>
+                    <View style={{
+                        backgroundColor: "white",
+                        borderRadius: 15,
+                        padding: 20,
+                        width: "80%",
+                        maxWidth: 400
+                    }}>
+                        <Text style={{
+                            fontSize: 20,
+                            fontWeight: "600",
+                            marginBottom: 20,
+                            textAlign: "center"
+                        }}>
+                            새 알람 추가
+                        </Text>
+
+                        <TextInput
+                            style={{
+                                borderWidth: 1,
+                                borderColor: "#ddd",
+                                borderRadius: 8,
+                                padding: 12,
+                                marginBottom: 15,
+                                fontSize: 16
+                            }}
+                            placeholder="알람 제목"
+                            value={alarmTitle}
+                            onChangeText={setAlarmTitle}
                         />
+
+                        <TextInput
+                            style={{
+                                borderWidth: 1,
+                                borderColor: "#ddd",
+                                borderRadius: 8,
+                                padding: 12,
+                                marginBottom: 20,
+                                fontSize: 16
+                            }}
+                            placeholder="시간 (예: 07:00)"
+                            value={alarmTime}
+                            onChangeText={setAlarmTime}
+                        />
+
+                        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: "#f44336",
+                                    paddingHorizontal: 20,
+                                    paddingVertical: 12,
+                                    borderRadius: 8,
+                                    flex: 1,
+                                    marginRight: 10
+                                }}
+                                onPress={() => setShowModal(false)}
+                            >
+                                <Text style={{ color: "white", textAlign: "center", fontWeight: "600" }}>
+                                    취소
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={{
+                                    backgroundColor: "#2196f3",
+                                    paddingHorizontal: 20,
+                                    paddingVertical: 12,
+                                    borderRadius: 8,
+                                    flex: 1,
+                                    marginLeft: 10
+                                }}
+                                onPress={handleAddAlarm}
+                                disabled={createAlarmMutation.isPending}
+                            >
+                                <Text style={{ color: "white", textAlign: "center", fontWeight: "600" }}>
+                                    {createAlarmMutation.isPending ? "추가 중..." : "추가"}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                </TouchableOpacity>
+                </View>
             </Modal>
-            
-            <TouchableOpacity
-                style={{
-                    backgroundColor: isTracking ? "#f44336" : "#2196f3",
-                    padding:15,
-                    borderRadius:8,
-                    alignItems:"center"
-                }}
-                onPress={isTracking ? stopLocationAlarm : startLocationAlarm}
-            >
-                <Text style={{color:"white", fontSize:16, fontWeight:"600"}}>
-                    {isTracking ? "알람 중지" : "알람 시작"}
-                </Text>
-            </TouchableOpacity>
-            
-            {isTracking && (
-                <Text style={{marginTop:10, fontSize:14, color:"#666"}}>
-                    📍 위치 추적 중... 목적지 근처에 도착하면 알려드릴게요!
-                </Text>
-            )}
-        </View>
+        </>
     );
 };
 
-const HomeScreen = () => {
+type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
-    const test_alarmList = [
-        { title:"이 알람은 제목이 있어요",time:"오전 7:00",toggle:false },
-        { title:"이 아래 알람은 제목이 없어요",time:"오전 7:03",toggle:true },
-        { title:undefined,time:"오전 7:07",toggle:false },
-        { title:"이제 자야해",time:"오후 11:00",toggle:true },
-        { title:"스크롤 해보셈",time:"오전 8:00",toggle:true }
-    ]
+const HomeScreen = () => {
+    const navigation = useNavigation<HomeScreenNavigationProp>();
+    const queryClient = useQueryClient();
+
+    // DB 초기화
+    useEffect(() => {
+        const initDB = async () => {
+            try {
+                console.log('🔄 HomeScreen에서 DB 초기화 시작');
+                console.log('🔧 alarmService 상태 확인:', alarmService);
+                console.log('🔧 alarmService.databaseService 상태 확인:', (alarmService as any).databaseService);
+                
+                await initializeDatabase();
+                console.log('✅ HomeScreen에서 DB 초기화 완료');
+                
+                // 초기화 후 다시 확인
+                console.log('🔧 초기화 후 alarmService.databaseService 상태 확인:', (alarmService as any).databaseService);
+            } catch (error) {
+                console.error('❌ HomeScreen에서 DB 초기화 실패:', error);
+            }
+        };
+        initDB();
+    }, []);
+
+    // 알람 목록 조회
+    const { data: alarms = [], isLoading } = useQuery({
+        queryKey: ['alarms'],
+        queryFn: async () => {
+            console.log('🔄 알람 목록 조회 시작');
+            console.log('🔧 alarmService 상태:', alarmService);
+            console.log('🔧 alarmService.databaseService 상태:', (alarmService as any).databaseService);
+            
+            try {
+                const result = await alarmService.getAllAlarms();
+                console.log('✅ 알람 목록 조회 성공:', result);
+                return result;
+            } catch (error) {
+                console.error('❌ 알람 목록 조회 실패:', error);
+                throw error;
+            }
+        },
+    });
+
+    // 알람 삭제
+    const deleteAlarmMutation = useMutation({
+        mutationFn: async (alarmId: number) => {
+            console.log('🔄 알람 삭제 시작:', alarmId);
+            console.log('🔧 alarmService 상태:', alarmService);
+            
+            try {
+                await alarmService.deleteAlarm(alarmId);
+                console.log('✅ 알람 삭제 성공:', alarmId);
+            } catch (error) {
+                console.error('❌ 알람 삭제 실패:', error);
+                throw error;
+            }
+        },
+        onSuccess: () => {
+            console.log('🔄 쿼리 무효화 시작');
+            queryClient.invalidateQueries({ queryKey: ['alarms'] });
+            Alert.alert('성공', '알람이 삭제되었습니다.');
+        },
+        onError: (error) => {
+            console.error('알람 삭제 오류:', error);
+            Alert.alert('오류', `알람 삭제 실패: ${error.message}`);
+        }
+    });
+
+    // 알람 토글 (켜기/끄기)
+    const toggleAlarmMutation = useMutation({
+        mutationFn: async (alarmId: number) => {
+            console.log('🔄 알람 토글 시작:', alarmId);
+            console.log('🔧 현재 알람 목록:', alarms);
+            
+            const alarm = alarms.find(a => a.id === alarmId);
+            if (!alarm) {
+                console.error('❌ 알람을 찾을 수 없습니다:', alarmId);
+                throw new Error('알람을 찾을 수 없습니다.');
+            }
+            
+            console.log('🔧 찾은 알람:', alarm);
+            console.log('🔧 현재 상태:', alarm.isSystemAlarm);
+            console.log('🔧 변경할 상태:', !alarm.isSystemAlarm);
+            
+            try {
+                if (alarm.isSystemAlarm) {
+                    console.log('🔄 OS 알람 취소 중...');
+                    await alarmService.cancelSystemAlarm(alarmId);
+                }
+                
+                console.log('🔄 알람 상태 업데이트 중...');
+                await alarmService.updateAlarm(alarmId, {
+                    isSystemAlarm: !alarm.isSystemAlarm
+                });
+                console.log('✅ 알람 토글 성공');
+            } catch (error) {
+                console.error('❌ 알람 토글 실패:', error);
+                throw error;
+            }
+        },
+        onSuccess: () => {
+            console.log('🔄 쿼리 무효화 시작');
+            queryClient.invalidateQueries({ queryKey: ['alarms'] });
+        },
+        onError: (error) => {
+            console.error('알람 토글 오류:', error);
+            Alert.alert('오류', `알람 토글 실패: ${error.message}`);
+        }
+    });
+
+    const handleToggleAlarm = (alarmId: number) => {
+        console.log('🔄 handleToggleAlarm 호출:', alarmId);
+        console.log('🔧 toggleAlarmMutation 상태:', toggleAlarmMutation);
+        toggleAlarmMutation.mutate(alarmId);
+    };
+
+    const handleDeleteAlarm = (alarmId: number) => {
+        console.log('🔄 handleDeleteAlarm 호출:', alarmId);
+        console.log('🔧 deleteAlarmMutation 상태:', deleteAlarmMutation);
+        Alert.alert(
+            '알람 삭제',
+            '정말로 이 알람을 삭제하시겠습니까?',
+            [
+                { text: '취소', style: 'cancel' },
+                { text: '삭제', style: 'destructive', onPress: () => {
+                    console.log('🔄 삭제 확인됨, mutation 실행');
+                    deleteAlarmMutation.mutate(alarmId);
+                }}
+            ]
+        );
+    };
 
     return (
         <View style={{flex:1}}>
             <View style={{
                 alignItems:"center",
-                marginTop: 100,
-                marginBottom: 100
-                }}>
+                marginTop: 50,
+                marginBottom: 30
+            }}>
                 <Text style={{
-                    fontSize:30,
+                    fontSize:24,
                     fontWeight:"600"
-                }}>모든 상태 꺼진 상태입니다</Text>
-            </View>
-            <View>
-                <View style={{
-                    flexDirection:"row-reverse",
-                    marginRight:30
-                }}>
-                    <Text style={{fontSize:55, fontWeight:"200"}}>+</Text>
+                }}>알람 관리</Text>
+                
+                <View style={{ flexDirection: "row", marginTop: 10 }}>
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: "#ff9800",
+                            paddingHorizontal: 15,
+                            paddingVertical: 8,
+                            borderRadius: 20,
+                            marginRight: 10
+                        }}
+                        onPress={() => navigation.navigate('TestAlarm')}
+                    >
+                        <Text style={{ color: "white", fontSize: 14, fontWeight: "600" }}>
+                            🧪 알람 테스트
+                        </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: "#9c27b0",
+                            paddingHorizontal: 15,
+                            paddingVertical: 8,
+                            borderRadius: 20,
+                            marginRight: 10
+                        }}
+                        onPress={() => navigation.navigate('DBTest')}
+                    >
+                        <Text style={{ color: "white", fontSize: 14, fontWeight: "600" }}>
+                            🔧 DB 테스트
+                        </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: "#607d8b",
+                            paddingHorizontal: 15,
+                            paddingVertical: 8,
+                            borderRadius: 20,
+                            marginRight: 10
+                        }}
+                        onPress={() => navigation.navigate('DBConnectionTest')}
+                    >
+                        <Text style={{ color: "white", fontSize: 14, fontWeight: "600" }}>
+                            🔗 연결 테스트
+                        </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: "#795548",
+                            paddingHorizontal: 15,
+                            paddingVertical: 8,
+                            borderRadius: 20,
+                            marginRight: 10
+                        }}
+                        onPress={() => navigation.navigate('SimpleAlarmTest')}
+                    >
+                        <Text style={{ color: "white", fontSize: 14, fontWeight: "600" }}>
+                            🚨 알람 테스트
+                        </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: "#e91e63",
+                            paddingHorizontal: 15,
+                            paddingVertical: 8,
+                            borderRadius: 20
+                        }}
+                        onPress={() => navigation.navigate('AlarmTest')}
+                    >
+                        <Text style={{ color: "white", fontSize: 14, fontWeight: "600" }}>
+                            🔔 울림 테스트
+                        </Text>
+                    </TouchableOpacity>
                 </View>
             </View>
 
             <ScrollView contentContainerStyle={{ paddingBottom: 95 }}>
-                <LocationAlarmCard />
-                {test_alarmList.map((alarm, index)=>{
-                    return <AlarmCard key={`${alarm.title}_${index}`} title={alarm.title} time={alarm.time} toggle={alarm.toggle} />
-                })}
+                <AddAlarmCard />
+                
+                {isLoading ? (
+                    <View style={{ alignItems: "center", padding: 20 }}>
+                        <Text>알람 목록을 불러오는 중...</Text>
+                    </View>
+                ) : alarms.length === 0 ? (
+                    <View style={{ alignItems: "center", padding: 20 }}>
+                        <Text style={{ color: "#666", fontSize: 16 }}>
+                            등록된 알람이 없습니다.
+                        </Text>
+                        <Text style={{ color: "#999", fontSize: 14, marginTop: 5 }}>
+                            + 버튼을 눌러 알람을 추가해보세요!
+                        </Text>
+                    </View>
+                ) : (
+                    alarms.map((alarm) => (
+                        <AlarmCard
+                            key={alarm.id}
+                            id={alarm.id}
+                            title={alarm.title}
+                            time={alarm.time}
+                            toggle={alarm.isSystemAlarm}
+                            onToggle={handleToggleAlarm}
+                            onDelete={handleDeleteAlarm}
+                        />
+                    ))
+                )}
             </ScrollView>
         </View>
     )

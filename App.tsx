@@ -12,7 +12,11 @@ import CustomHeader from './Components/CustomHeader';
 import TodoScreen from './screens/TodoScreen';
 import AlarmScreen from './screens/AlarmScreen';
 import DDayScreen from './screens/DDayScreen';
-import DebugScreen from './screens/DebugScreen';
+import TestAlarmScreen from './screens/TestAlarmScreen';
+import DBTestScreen from './screens/DBTestScreen';
+import DBConnectionTest from './screens/DBConnectionTest';
+import SimpleAlarmTest from './screens/SimpleAlarmTest';
+import AlarmTestScreen from './screens/AlarmTestScreen';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 
@@ -77,7 +81,11 @@ function App() {
               <Stack.Screen name="Todo" component={TodoScreen} options={{ title: '할 일' }} />
               <Stack.Screen name="Alarm" component={AlarmScreen} options={{ title: '알람' }} />
               <Stack.Screen name="DDay" component={DDayScreen} options={{ title: 'D-DAY' }} />
-              <Stack.Screen name="Debug" component={DebugScreen} options={{ title: '디버그' }} />
+              <Stack.Screen name="TestAlarm" component={TestAlarmScreen} options={{ title: '알람 테스트' }} />
+              <Stack.Screen name="DBTest" component={DBTestScreen} options={{ title: 'DB 테스트' }} />
+              <Stack.Screen name="DBConnectionTest" component={DBConnectionTest} options={{ title: 'DB 연결 테스트' }} />
+              <Stack.Screen name="SimpleAlarmTest" component={SimpleAlarmTest} options={{ title: '알람 생성 테스트' }} />
+              <Stack.Screen name="AlarmTest" component={AlarmTestScreen} options={{ title: '알람 울림 테스트' }} />
             </Stack.Navigator>
           </NavigationContainer>
         </SafeAreaView>
