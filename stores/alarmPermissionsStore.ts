@@ -1,14 +1,20 @@
-﻿import { Linking, PermissionsAndroid, Platform } from "react-native";
+﻿import { NativeModules, Platform } from "react-native";
 import { create } from "zustand";
 
 const isAndroid = Platform.OS === "android";
-const sdkVersion = Platform.Version as number;
 
-const PERMISSIONS = PermissionsAndroid.PERMISSIONS;
+type PermissionBridge = {
+  checkPostNotifications: () => Promise<boolean>;
+  requestPostNotifications: () => Promise<boolean>;
+  checkFineLocation: () => Promise<boolean>;
+  requestFineLocation: () => Promise<boolean>;
+  checkBackgroundLocation: () => Promise<boolean>;
+  requestBackgroundLocation: () => Promise<boolean>;
+  canScheduleExactAlarms: () => Promise<boolean>;
+  openScheduleExactAlarmSettings: () => Promise<boolean>;
+};
 
-const POST_NOTIFICATIONS = PERMISSIONS?.POST_NOTIFICATIONS ?? "android.permission.POST_NOTIFICATIONS";
-const ACCESS_FINE_LOCATION = PERMISSIONS?.ACCESS_FINE_LOCATION ?? "android.permission.ACCESS_FINE_LOCATION";
-const ACCESS_BACKGROUND_LOCATION = PERMISSIONS?.ACCESS_BACKGROUND_LOCATION ?? "android.permission.ACCESS_BACKGROUND_LOCATION";
+const PermissionModule: Partial<PermissionBridge> = isAndroid ? NativeModules.PermissionModule ?? {} : {};
 
 export type AlarmPermissionState = {
   hasPostNotifications: boolean;
@@ -24,43 +30,15 @@ export type AlarmPermissionState = {
   acknowledgeExactAlarmPermission: (granted: boolean) => void;
 };
 
-const inferExactAlarm = (): boolean => {
-  if (!isAndroid) return true;
-  if (sdkVersion < 31) return true;
-  // Android 12 이상에서는 정확한 알람 권한을 RN에서 직접 확인할 수 없어 사용자 확인이 필요함
-  return false;
-};
-
-const checkPermission = async (permission: string): Promise<boolean> => {
-  try {
-    if (!isAndroid) return true;
-    return await PermissionsAndroid.check(permission as any);
-  } catch (error) {
-    console.warn("[Permissions] check failed", permission, error);
-    return false;
-  }
-};
-
-const requestPermission = async (permission: string): Promise<boolean> => {
-  try {
-    if (!isAndroid) return true;
-    const result = await PermissionsAndroid.request(permission as any);
-    return result === PermissionsAndroid.RESULTS.GRANTED;
-  } catch (error) {
-    console.warn("[Permissions] request failed", permission, error);
-    return false;
-  }
-};
-
 export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) => ({
-  hasPostNotifications: !isAndroid || sdkVersion < 33,
+  hasPostNotifications: !isAndroid,
   hasFineLocation: !isAndroid,
-  hasBackgroundLocation: !isAndroid || sdkVersion < 29,
-  hasExactAlarm: inferExactAlarm(),
+  hasBackgroundLocation: !isAndroid,
+  hasExactAlarm: !isAndroid,
   lastCheckedAt: null,
 
   hydratePermissions: async () => {
-    if (!isAndroid) {
+    if (!isAndroid || !PermissionModule.checkPostNotifications) {
       set({
         hasPostNotifications: true,
         hasFineLocation: true,
@@ -71,71 +49,90 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
       return;
     }
 
-    const [post, fine, background] = await Promise.all([
-      sdkVersion >= 33 ? checkPermission(POST_NOTIFICATIONS) : Promise.resolve(true),
-      checkPermission(ACCESS_FINE_LOCATION),
-      sdkVersion >= 29 ? checkPermission(ACCESS_BACKGROUND_LOCATION) : Promise.resolve(true),
-    ]);
+    try {
+      const [post, fine, background, exact] = await Promise.all([
+        PermissionModule.checkPostNotifications(),
+        PermissionModule.checkFineLocation?.() ?? Promise.resolve(false),
+        PermissionModule.checkBackgroundLocation?.() ?? Promise.resolve(false),
+        PermissionModule.canScheduleExactAlarms?.() ?? Promise.resolve(false),
+      ]);
 
-    set({
-      hasPostNotifications: post,
-      hasFineLocation: fine,
-      hasBackgroundLocation: background,
-      lastCheckedAt: Date.now(),
-    });
+      set({
+        hasPostNotifications: post,
+        hasFineLocation: fine,
+        hasBackgroundLocation: background,
+        hasExactAlarm: exact,
+        lastCheckedAt: Date.now(),
+      });
+    } catch (error) {
+      console.warn("[Permissions] hydrate via native failed", error);
+      set({
+        hasPostNotifications: false,
+        hasFineLocation: false,
+        hasBackgroundLocation: false,
+        hasExactAlarm: false,
+        lastCheckedAt: Date.now(),
+      });
+    }
   },
 
   requestPostNotifications: async () => {
-    if (!isAndroid || sdkVersion < 33) {
+    if (!isAndroid || !PermissionModule.requestPostNotifications) {
       set({ hasPostNotifications: true });
       return true;
     }
-    const granted = await requestPermission(POST_NOTIFICATIONS);
-    set({ hasPostNotifications: granted });
-    return granted;
+    try {
+      const granted = await PermissionModule.requestPostNotifications();
+      set({ hasPostNotifications: granted });
+      return granted;
+    } catch (error) {
+      console.warn("[Permissions] requestPostNotifications failed", error);
+      set({ hasPostNotifications: false });
+      return false;
+    }
   },
 
   requestFineLocation: async () => {
-    if (!isAndroid) {
+    if (!isAndroid || !PermissionModule.requestFineLocation) {
       set({ hasFineLocation: true });
       return true;
     }
-    const granted = await requestPermission(ACCESS_FINE_LOCATION);
-    set({ hasFineLocation: granted });
-    return granted;
+    try {
+      const granted = await PermissionModule.requestFineLocation();
+      set({ hasFineLocation: granted });
+      return granted;
+    } catch (error) {
+      console.warn("[Permissions] requestFineLocation failed", error);
+      set({ hasFineLocation: false });
+      return false;
+    }
   },
 
   requestBackgroundLocation: async () => {
-    if (!isAndroid || sdkVersion < 29) {
+    if (!isAndroid || !PermissionModule.requestBackgroundLocation) {
       set({ hasBackgroundLocation: true });
       return true;
     }
-    const fineGranted = get().hasFineLocation || (await get().requestFineLocation());
-    if (!fineGranted) {
+    try {
+      const granted = await PermissionModule.requestBackgroundLocation();
+      set({ hasBackgroundLocation: granted });
+      return granted;
+    } catch (error) {
+      console.warn("[Permissions] requestBackgroundLocation failed", error);
       set({ hasBackgroundLocation: false });
       return false;
     }
-    const granted = await requestPermission(ACCESS_BACKGROUND_LOCATION);
-    set({ hasBackgroundLocation: granted });
-    return granted;
   },
 
   openExactAlarmSettings: async () => {
-    if (!isAndroid) return;
-
-    const intentAction = sdkVersion >= 31
-      ? "android.settings.REQUEST_SCHEDULE_EXACT_ALARM"
-      : "android.settings.APPLICATION_DETAILS_SETTINGS";
+    if (!isAndroid || !PermissionModule.openScheduleExactAlarmSettings) {
+      return;
+    }
 
     try {
-      if (typeof Linking.sendIntent === "function") {
-        await Linking.sendIntent(intentAction);
-      } else {
-        await Linking.openSettings();
-      }
+      await PermissionModule.openScheduleExactAlarmSettings();
     } catch (error) {
-      console.warn("[Permissions] exact alarm intent failed", error);
-      await Linking.openSettings();
+      console.warn("[Permissions] exact alarm settings intent failed", error);
     }
   },
 
