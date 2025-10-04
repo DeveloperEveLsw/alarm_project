@@ -1,43 +1,46 @@
-﻿package com.alarm_project.alarm
+package com.alarm_project.alarm
 
 import android.app.Service
+import android.content.pm.ServiceInfo
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.alarm_project.MainActivity
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import android.util.Log
 
 class AlarmService : Service() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var currentSpec: AlarmSpec? = null
     private var isForeground = false
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
     private var uiReadyTimestamp: Long? = null
+    private var lastLockState: LockStateSnapshot? = null
+    private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { }
+    private var hasAudioFocus = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
+        when (intent?.action) { //알람서비스에 Intent가 들어오면 일로옴
+                                //트리거면 handleTrigger로
+                                //커멘드면 handleCommand로
             AlarmConstants.ACTION_TRIGGER -> handleTrigger(intent)
             AlarmConstants.ACTION_COMMAND -> handleCommand(intent)
         }
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
-    private fun handleTrigger(intent: Intent) {
+    private fun handleTrigger(intent: Intent) { //여기가 알람 트리거 받아서 처리하는 쪽
         val alarmId = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_ID) ?: return
         val spec = intent.getStringExtra(AlarmConstants.EXTRA_SPEC_JSON)?.let {
             runCatching { AlarmJson.decodeSpec(it) }.getOrNull()
@@ -50,13 +53,16 @@ class AlarmService : Service() {
         }
 
         currentSpec = spec
-        setForeground(spec, isRinging = false, fullScreen = false, channelOverride = null)
 
-        scope.launch {
-            val contextSnapshot = withContext(Dispatchers.Default) {
-                ContextSnapshotBuilder(this@AlarmService).build(spec, System.currentTimeMillis())
-            }
-            AlarmEventDispatcher.send(this@AlarmService, FiredEvent(spec.id, contextSnapshot))
+        val lockStateSnapshot = ContextSnapshotBuilder(this).getLockStateSnapshot()
+        lastLockState = lockStateSnapshot
+        val shouldLaunchFullScreen = shouldForceFullScreen(lockStateSnapshot)
+
+        startRinging(spec, shouldLaunchFullScreen, null, lockStateSnapshot)
+
+        if (shouldLaunchFullScreen) {
+            Log.d("AlarmService", "launching full screen alarm activity")
+            launchAlarmActivity(spec.id)
         }
     }
 
@@ -76,14 +82,26 @@ class AlarmService : Service() {
         }
     }
 
-    private fun startRinging(spec: AlarmSpec, fullScreen: Boolean, channelOverride: AlarmChannel?) {
-        setForeground(spec, isRinging = true, fullScreen = fullScreen, channelOverride = channelOverride)
+    private fun startRinging(
+        spec: AlarmSpec,
+        fullScreen: Boolean,
+        channelOverride: AlarmChannel?,
+        lockStateOverride: LockStateSnapshot? = null,
+    ) {
+        val lockState = lockStateOverride ?: lastLockState ?: ContextSnapshotBuilder(this).getLockStateSnapshot()
+        lastLockState = lockState
+        val resolvedFullScreen = fullScreen || shouldForceFullScreen(lockState)
+        setForeground(spec, isRinging = true, fullScreen = resolvedFullScreen, channelOverride = channelOverride)
 
         val audioManager = ContextCompat.getSystemService(this, AudioManager::class.java)
-        audioManager?.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        val focusResult = audioManager?.requestAudioFocus(
+            audioFocusListener,
+            AudioManager.STREAM_ALARM,
+            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+        )
+        hasAudioFocus = focusResult == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
 
-        val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+        val alarmUri = resolveAlarmUri(spec)
         val attributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -96,17 +114,7 @@ class AlarmService : Service() {
             play()
         }
 
-        val vibrator = ContextCompat.getSystemService(this, Vibrator::class.java)
-        this.vibrator = vibrator
-        if (vibrator != null && vibrator.hasVibrator()) {
-            val pattern = longArrayOf(0, 800, 600)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(pattern, 0)
-            }
-        }
+        handleVibration(spec)
     }
 
     private fun setForeground(
@@ -117,7 +125,15 @@ class AlarmService : Service() {
     ) {
         val notification = AlarmNotifications.buildForeground(this, spec, isRinging, fullScreen, channelOverride)
         if (!isForeground) {
-            startForeground(AlarmConstants.NOTIFICATION_ID_FOREGROUND, notification)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    AlarmConstants.NOTIFICATION_ID_FOREGROUND,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+                )
+            } else {
+                startForeground(AlarmConstants.NOTIFICATION_ID_FOREGROUND, notification)
+            }
             isForeground = true
         } else {
             AlarmNotifications.notifyEvent(this, AlarmConstants.NOTIFICATION_ID_FOREGROUND, notification)
@@ -161,13 +177,71 @@ class AlarmService : Service() {
         ringtone = null
         vibrator?.cancel()
         vibrator = null
+
+        if (hasAudioFocus) {
+            val audioManager = ContextCompat.getSystemService(this, AudioManager::class.java)
+            audioManager?.abandonAudioFocus(audioFocusListener)
+            hasAudioFocus = false
+        }
     }
 
     override fun onDestroy() {
         stopRinging()
-        scope.cancel()
         isForeground = false
         super.onDestroy()
     }
-}
 
+    private fun shouldForceFullScreen(lockState: LockStateSnapshot): Boolean {
+        return !lockState.isScreenOn || lockState.isKeyguardLocked
+    }
+
+    private fun buildAlarmActivityIntent(id: String): Intent {
+        return Intent(this, AlarmActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("alarm_id", id)
+        }
+    }
+
+    private fun launchAlarmActivity(id: String) {
+        val intent = buildAlarmActivityIntent(id)
+        val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        if (resolveInfo != null) {
+            startActivity(intent)
+            Log.d("AlarmService", "startActivity!!")
+        }
+    }
+
+    private fun resolveAlarmUri(spec: AlarmSpec): Uri {
+        val fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            ?: Settings.System.DEFAULT_ALARM_ALERT_URI
+
+        val raw = spec.metadata?.get("sound")?.takeIf { it.isNotBlank() && it != "default" }
+        val parsed = raw?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        if (parsed == null && raw != null) {
+            Log.w("AlarmService", "Invalid alarm sound uri: $raw")
+        }
+        return parsed ?: fallback
+    }
+
+    private fun handleVibration(spec: AlarmSpec) {
+        val shouldVibrate = spec.metadata?.get("vibrate")?.let { it.equals("true", ignoreCase = true) }
+            ?: true
+        val vibrator = ContextCompat.getSystemService(this, Vibrator::class.java)
+        this.vibrator = vibrator
+        if (!shouldVibrate) {
+            vibrator?.cancel()
+            return
+        }
+
+        if (vibrator != null && vibrator.hasVibrator()) {
+            val pattern = longArrayOf(0, 800, 600)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(pattern, 0)
+            }
+        }
+    }
+}

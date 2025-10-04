@@ -103,6 +103,24 @@ class PermissionModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun checkVibrate(promise: Promise) {
+        promise.resolve(hasPermission(Manifest.permission.VIBRATE))
+    }
+
+    @ReactMethod
+    fun requestVibrate(promise: Promise) {
+        if (hasPermission(Manifest.permission.VIBRATE)) {
+            promise.resolve(true)
+            return
+        }
+
+        requestPermissionsInternal(arrayOf(Manifest.permission.VIBRATE),
+            onResult = { granted -> promise.resolve(granted) },
+            onError = { code, message -> promise.reject(code, message) },
+        )
+    }
+
+    @ReactMethod
     fun canScheduleExactAlarms(promise: Promise) {
         val granted = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             true
@@ -139,7 +157,7 @@ class PermissionModule(private val reactContext: ReactApplicationContext) :
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
-        permissions: Array<out String>,
+        permissions: Array<String>,
         grantResults: IntArray,
     ): Boolean {
         val callback = pendingCallbacks[requestCode] ?: return false
@@ -174,7 +192,7 @@ class PermissionModule(private val reactContext: ReactApplicationContext) :
         }
 
         // ReactActivity가 PermissionAwareActivity를 구현해야 런타임 요청 가능
-        val activity = currentActivity ?: run {
+        val activity = reactContext.currentActivity ?: run {
             onError("no_activity", "Foreground activity not available")
             return
         }

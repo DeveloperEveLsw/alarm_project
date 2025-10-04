@@ -1,4 +1,4 @@
-﻿export type AlarmMode = "normal" | "shake" | "math";
+export type AlarmMode = "normal" | "shake" | "math";
 
 export type LocationRequirement = "home-in" | "home-out" | "any";
 

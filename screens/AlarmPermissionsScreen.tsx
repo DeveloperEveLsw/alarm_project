@@ -59,7 +59,16 @@ const AlarmPermissionsScreen: React.FC = () => {
         </Pressable>
       </View>
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>3. 배터리 최적화 해제</Text>
+        <Text style={styles.cardTitle}>3. 진동 권한</Text>
+        <Text style={styles.cardBody}>
+          진동을 사용하도록 허용해야 알람 소리와 함께 haptic 피드백이 정상적으로 동작합니다.
+        </Text>
+        <Pressable style={styles.cardButton} onPress={openSettings}>
+          <Text style={styles.cardButtonLabel}>권한 관리로 이동</Text>
+        </Pressable>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>4. 배터리 최적화 해제</Text>
         <Text style={styles.cardBody}>
           앱이 절전 모드로 전환되지 않도록 배터리 최적화에서 제외해 주세요. 제조사마다 위치가 다를 수 있습니다.
         </Text>
@@ -68,7 +77,7 @@ const AlarmPermissionsScreen: React.FC = () => {
         </Pressable>
       </View>
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>4. 위치 권한</Text>
+        <Text style={styles.cardTitle}>5. 위치 권한</Text>
         <Text style={styles.cardBody}>
           위치 기반 미션을 사용하려면 앱 권한에서 위치 (정확/배경) 허용이 필요합니다.
         </Text>

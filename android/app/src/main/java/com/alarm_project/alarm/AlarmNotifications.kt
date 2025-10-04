@@ -1,4 +1,4 @@
-﻿package com.alarm_project.alarm
+package com.alarm_project.alarm
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -7,9 +7,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.alarm_project.MainActivity
 import com.alarm_project.R
 
 object AlarmNotifications {
@@ -51,15 +51,15 @@ object AlarmNotifications {
         channelOverride: AlarmChannel? = null
     ): Notification {
         ensureChannels(context)
-        val targetIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val alarmActivityIntent = Intent(context, AlarmActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("alarm_id", spec.id)
         }
 
-        val contentIntent = PendingIntent.getActivity(
+        val alarmActivityPendingIntent = PendingIntent.getActivity(
             context,
             spec.id.hashCode(),
-            targetIntent,
+            alarmActivityIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -72,17 +72,56 @@ object AlarmNotifications {
             .setContentTitle(spec.label ?: context.getString(R.string.alarm_notification_title))
             .setContentText(context.getString(R.string.alarm_notification_body))
             .setSmallIcon(R.drawable.ic_stat_alarm)
-            .setContentIntent(contentIntent)
+            .setContentIntent(alarmActivityPendingIntent)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(false)
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
 
+        val dismissIntent = AlarmEngineModuleHelper.createCommandPendingIntent(
+            context,
+            buildActionRequestCode(spec.id, "dismiss"),
+            DismissCommand(spec.id)
+        )
+        val snoozeIntent = AlarmEngineModuleHelper.createCommandPendingIntent(
+            context,
+            buildActionRequestCode(spec.id, "snooze"),
+            SnoozeCommand(spec.id, null)
+        )
+
+        builder.addAction(
+            NotificationCompat.Action(
+                android.R.drawable.ic_menu_recent_history,
+                context.getString(R.string.alarm_action_snooze),
+                snoozeIntent,
+            )
+        )
+        builder.addAction(
+            NotificationCompat.Action(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                context.getString(R.string.alarm_action_dismiss),
+                dismissIntent,
+            )
+        )
+
         if (isRinging) {
             builder.setPriority(NotificationCompat.PRIORITY_MAX)
-            builder.setFullScreenIntent(contentIntent, fullScreen)
+            builder.setFullScreenIntent(alarmActivityPendingIntent, fullScreen)
             builder.setDefaults(NotificationCompat.DEFAULT_VIBRATE)
+            if (!fullScreen) {
+                val remoteViews = RemoteViews(context.packageName, R.layout.notification_alarm_heads_up).apply {
+                    val title = spec.label ?: context.getString(R.string.alarm_notification_heads_up_title)
+                    setTextViewText(R.id.alarm_heads_up_title, title)
+                    setTextViewText(R.id.alarm_heads_up_message, context.getString(R.string.alarm_notification_heads_up_message))
+                    setOnClickPendingIntent(R.id.alarm_heads_up_snooze, snoozeIntent)
+                    setOnClickPendingIntent(R.id.alarm_heads_up_dismiss, dismissIntent)
+                }
+                builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+                builder.setCustomContentView(remoteViews)
+                builder.setCustomHeadsUpContentView(remoteViews)
+                builder.setCustomBigContentView(remoteViews)
+            }
         } else {
             builder.setPriority(NotificationCompat.PRIORITY_HIGH)
         }
@@ -92,5 +131,9 @@ object AlarmNotifications {
 
     fun notifyEvent(context: Context, notificationId: Int, notification: Notification) {
         NotificationManagerCompat.from(context).notify(notificationId, notification)
+    }
+
+    private fun buildActionRequestCode(id: String, suffix: String): Int {
+        return (id + suffix).hashCode()
     }
 }

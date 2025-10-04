@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#111827"
+    android:padding="32dp">
+
+    <TextView
+        android:id="@+id/alarmMessage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="24sp"
+        android:textColor="#FFFFFF"
+        android:text=""
+        android:layout_marginBottom="24dp"
+        android:textStyle="bold" />
+
+    <Button
+        android:id="@+id/alarmDismissButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="알람 끄기"
+        android:layout_marginBottom="12dp"
+        android:backgroundTint="@android:color/holo_red_light"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp" />
+
+    <Button
+        android:id="@+id/alarmSnoozeButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="5분 뒤 다시"
+        android:backgroundTint="@android:color/holo_blue_dark"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp" />
+
+</LinearLayout>

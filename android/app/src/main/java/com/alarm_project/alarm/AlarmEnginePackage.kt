@@ -10,6 +10,7 @@ class AlarmEnginePackage : ReactPackage {
         listOf(
             AlarmEngineModule(reactContext),
             PermissionModule(reactContext),
+            RingtonePickerModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()

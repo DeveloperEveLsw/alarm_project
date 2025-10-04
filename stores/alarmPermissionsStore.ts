@@ -10,6 +10,8 @@ type PermissionBridge = {
   requestFineLocation: () => Promise<boolean>;
   checkBackgroundLocation: () => Promise<boolean>;
   requestBackgroundLocation: () => Promise<boolean>;
+  checkVibrate: () => Promise<boolean>;
+  requestVibrate: () => Promise<boolean>;
   canScheduleExactAlarms: () => Promise<boolean>;
   openScheduleExactAlarmSettings: () => Promise<boolean>;
 };
@@ -21,11 +23,13 @@ export type AlarmPermissionState = {
   hasFineLocation: boolean;
   hasBackgroundLocation: boolean;
   hasExactAlarm: boolean;
+  hasVibrate: boolean;
   lastCheckedAt: number | null;
   hydratePermissions: () => Promise<void>;
   requestPostNotifications: () => Promise<boolean>;
   requestFineLocation: () => Promise<boolean>;
   requestBackgroundLocation: () => Promise<boolean>;
+  requestVibrate: () => Promise<boolean>;
   openExactAlarmSettings: () => Promise<void>;
   acknowledgeExactAlarmPermission: (granted: boolean) => void;
 };
@@ -35,6 +39,7 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
   hasFineLocation: !isAndroid,
   hasBackgroundLocation: !isAndroid,
   hasExactAlarm: !isAndroid,
+  hasVibrate: !isAndroid,
   lastCheckedAt: null,
 
   hydratePermissions: async () => {
@@ -44,16 +49,18 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
         hasFineLocation: true,
         hasBackgroundLocation: true,
         hasExactAlarm: true,
+        hasVibrate: true,
         lastCheckedAt: Date.now(),
       });
       return;
     }
 
     try {
-      const [post, fine, background, exact] = await Promise.all([
+      const [post, fine, background, vibrate, exact] = await Promise.all([
         PermissionModule.checkPostNotifications(),
         PermissionModule.checkFineLocation?.() ?? Promise.resolve(false),
         PermissionModule.checkBackgroundLocation?.() ?? Promise.resolve(false),
+        PermissionModule.checkVibrate?.() ?? Promise.resolve(true),
         PermissionModule.canScheduleExactAlarms?.() ?? Promise.resolve(false),
       ]);
 
@@ -61,6 +68,7 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
         hasPostNotifications: post,
         hasFineLocation: fine,
         hasBackgroundLocation: background,
+        hasVibrate: vibrate,
         hasExactAlarm: exact,
         lastCheckedAt: Date.now(),
       });
@@ -71,6 +79,7 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
         hasFineLocation: false,
         hasBackgroundLocation: false,
         hasExactAlarm: false,
+        hasVibrate: false,
         lastCheckedAt: Date.now(),
       });
     }
@@ -124,6 +133,22 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
     }
   },
 
+  requestVibrate: async () => {
+    if (!isAndroid || !PermissionModule.requestVibrate) {
+      set({ hasVibrate: true });
+      return true;
+    }
+    try {
+      const granted = await PermissionModule.requestVibrate();
+      set({ hasVibrate: granted });
+      return granted;
+    } catch (error) {
+      console.warn("[Permissions] requestVibrate failed", error);
+      set({ hasVibrate: false });
+      return false;
+    }
+  },
+
   openExactAlarmSettings: async () => {
     if (!isAndroid || !PermissionModule.openScheduleExactAlarmSettings) {
       return;
@@ -140,4 +165,3 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
     set({ hasExactAlarm: granted });
   },
 }));
-

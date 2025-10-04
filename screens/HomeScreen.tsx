@@ -1,196 +1,263 @@
-﻿import React, { useCallback, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   FlatList,
-  Modal,
   Pressable,
-  SafeAreaView,
   StyleSheet,
-  Switch,
   Text,
-  TextInput,
   View,
-} from 'react-native';
-import dayjs from 'dayjs';
+} from "react-native";
+import dayjs from "dayjs";
 
-import { AlarmEngine } from '../alarm/engine';
-import type { AlarmSpec } from '../alarm/contracts';
+import AlarmEditorModal from "../Components/AlarmEditorModal";
+import AlarmListItem from "../Components/AlarmListItem";
+import { scheduleAlarm, cancelAlarm } from "../services/alarm/alarmService";
+import { useAlarmPermissionsStore } from "../stores/alarmPermissionsStore";
+import type { AlarmPermissionState } from "../stores/alarmPermissionsStore";
+import type { AlarmDraft, AlarmItem } from "../types/alarm.types";
+import { ensureLocationForegroundServicePermission } from "../services/permissionHelpers";
 
-type AlarmItem = {
-  id: string;
-  label: string;
-  hour: number;
-  minute: number;
-  enabled: boolean;
+const DEFAULT_SOUND = "Arcade";
+
+const selectHasExactAlarm = (state: AlarmPermissionState) => state.hasExactAlarm;
+const selectHasPostNotifications = (state: AlarmPermissionState) => state.hasPostNotifications;
+const selectHasVibrate = (state: AlarmPermissionState) => state.hasVibrate;
+const selectHasFineLocation = (state: AlarmPermissionState) => state.hasFineLocation;
+
+const sortAlarms = (items: AlarmItem[]): AlarmItem[] =>
+  [...items].sort((a, b) => {
+    const timeA = a.hour * 60 + a.minute;
+    const timeB = b.hour * 60 + b.minute;
+    if (timeA !== timeB) return timeA - timeB;
+    return a.id.localeCompare(b.id);
+  });
+
+const createDefaultDraft = (): AlarmDraft => {
+  const base = dayjs().add(1, "minute");
+  return {
+    label: "",
+    hour: base.hour(),
+    minute: base.minute(),
+    repeatDays: [],
+    skipHolidays: false,
+    sound: DEFAULT_SOUND,
+    vibrate: true,
+  };
 };
 
-const pad = (value: number) => value.toString().padStart(2, '0');
-
-const getNextFireAt = (hour: number, minute: number) => {
-  const now = dayjs();
-  let target = now.hour(hour).minute(minute).second(0).millisecond(0);
-  if (target.isBefore(now)) {
-    target = target.add(1, 'day');
-  }
-  return target.valueOf();
-};
-
-const createSpec = (alarm: AlarmItem): AlarmSpec => ({
+const toDraft = (alarm: AlarmItem): AlarmDraft => ({
   id: alarm.id,
-  fireAt: getNextFireAt(alarm.hour, alarm.minute),
-  policy: {
-    mode: 'normal',
-  },
-  label: alarm.label || undefined,
-  allowWhileIdle: true,
-  channel: 'alarms',
-  metadata: {
-    localTime: `${pad(alarm.hour)}:${pad(alarm.minute)}`,
-  },
+  label: alarm.label,
+  hour: alarm.hour,
+  minute: alarm.minute,
+  repeatDays: alarm.repeatDays,
+  skipHolidays: alarm.skipHolidays,
+  sound: alarm.sound,
+  vibrate: alarm.vibrate,
 });
-
-const AlarmCard = ({ alarm, onToggle }: { alarm: AlarmItem; onToggle: (enabled: boolean) => Promise<void> }) => {
-  const nextSchedule = useMemo(() => getNextFireAt(alarm.hour, alarm.minute), [alarm.hour, alarm.minute]);
-  const nextLabel = useMemo(() => dayjs(nextSchedule).format('M월 D일 (ddd) A hh:mm'), [nextSchedule]);
-
-  return (
-    <View style={styles.cardWrapper}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTime}>{`${pad(alarm.hour)}:${pad(alarm.minute)}`}</Text>
-        <Switch
-          value={alarm.enabled}
-          onValueChange={enabled => {
-            onToggle(enabled).catch(error => console.warn('toggle alarm failed', error));
-          }}
-        />
-      </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardLabel}>{alarm.label || '알람'}</Text>
-        <Text style={styles.cardNext}>{alarm.enabled ? `다음 알람: ${nextLabel}` : '꺼짐'}</Text>
-      </View>
-    </View>
-  );
-};
-
-const TimeAdjustButton = ({ label, onPress }: { label: string; onPress: () => void }) => (
-  <Pressable style={styles.adjustButton} onPress={onPress}>
-    <Text style={styles.adjustButtonLabel}>{label}</Text>
-  </Pressable>
-);
 
 const HomeScreen: React.FC = () => {
   const [alarms, setAlarms] = useState<AlarmItem[]>([]);
-  const [isModalVisible, setModalVisible] = useState(false);
-  const [draftHour, setDraftHour] = useState(dayjs().hour());
-  const [draftMinute, setDraftMinute] = useState(dayjs().minute());
-  const [draftLabel, setDraftLabel] = useState('');
+  const [editorState, setEditorState] = useState<{ mode: "create" | "edit"; draft: AlarmDraft } | null>(null);
+
+  const hasExactAlarm = useAlarmPermissionsStore(selectHasExactAlarm);
+  const hasPostNotifications = useAlarmPermissionsStore(selectHasPostNotifications);
+  const hasVibrate = useAlarmPermissionsStore(selectHasVibrate);
+  const hasFineLocation = useAlarmPermissionsStore(selectHasFineLocation);
+  const {
+    hydratePermissions,
+    requestPostNotifications,
+    requestFineLocation,
+    requestVibrate,
+    openExactAlarmSettings,
+  } = useAlarmPermissionsStore.getState();
 
 
-  const incrementHour = useCallback(() => {
-    setDraftHour(prev => (prev + 1) % 24);
-  }, []);
-  const decrementHour = useCallback(() => {
-    setDraftHour(prev => (prev - 1 + 24) % 24);
-  }, []);
-  const incrementMinute = useCallback(() => {
-    setDraftMinute(prev => (prev + 1) % 60);
-  }, []);
-  const decrementMinute = useCallback(() => {
-    setDraftMinute(prev => (prev - 1 + 60) % 60);
+  useEffect(() => {
+    hydratePermissions().catch(error => {
+      console.warn("[Permissions] hydrate failed", error);
+    });
+  }, [hydratePermissions]);
+
+  const ensureCorePermissions = useCallback(async () => {
+    if (!hasPostNotifications) {
+      const granted = await requestPostNotifications();
+      if (!granted) {
+        Alert.alert("권한 필요", "알림 권한을 허용해야 알람을 받을 수 있어요.");
+        return false;
+      }
+    }
+
+    if (!hasVibrate) {
+      const granted = await requestVibrate();
+      if (!granted) {
+        Alert.alert("권한 필요", "기기 진동 권한을 허용해야 알람이 정상적으로 울립니다.");
+        return false;
+      }
+    }
+
+    if (!hasFineLocation) {
+      const granted = await requestFineLocation();
+      if (!granted) {
+        Alert.alert("권한 필요", "위치 권한을 허용해야 알람 서비스가 안정적으로 동작합니다.");
+        return false;
+      }
+    }
+
+    if (!(await ensureLocationForegroundServicePermission())) {
+      Alert.alert("권한 필요", "포그라운드 위치 권한을 허용해야 알람이 정확히 동작합니다.");
+      return false;
+    }
+
+    if (!hasExactAlarm) {
+      await openExactAlarmSettings();
+      await hydratePermissions();
+      const latestExact = useAlarmPermissionsStore.getState().hasExactAlarm;
+      if (!latestExact) {
+        Alert.alert("권한 필요", "설정에서 정확한 알람 권한을 허용해 주세요.");
+        return false;
+      }
+    }
+
+    return true;
+  }, [
+    hasExactAlarm,
+    hasPostNotifications,
+    hasVibrate,
+    hasFineLocation,
+    hydratePermissions,
+    openExactAlarmSettings,
+    requestPostNotifications,
+    requestVibrate,
+    requestFineLocation,
+  ]);
+
+  const closeEditor = useCallback(() => {
+    setEditorState(null);
   }, []);
 
-  const scheduleAlarm = useCallback(
-    async (item: AlarmItem) => {
-      const spec = createSpec(item);
-      await AlarmEngine.scheduleExact(spec);
-      setAlarms(prev =>
-        prev.map(alarm => (alarm.id === item.id ? { ...alarm, enabled: true } : alarm))
-      );
+  const upsertAlarm = useCallback((next: AlarmItem) => {
+    setAlarms(prev => sortAlarms([...prev.filter(item => item.id !== next.id), next]));
+  }, []);
+
+  const handleSaveDraft = useCallback(
+    async (payload: AlarmDraft) => {
+      const permissionsOk = await ensureCorePermissions();
+      if (!permissionsOk) {
+        return;
+      }
+
+      setEditorState(null);
+
+      const existing = payload.id ? alarms.find(alarm => alarm.id === payload.id) : undefined;
+      const id = payload.id ?? `alarm-${Date.now()}`;
+      const base: AlarmItem = {
+        id,
+        label: payload.label,
+        hour: payload.hour,
+        minute: payload.minute,
+        repeatDays: payload.repeatDays,
+        skipHolidays: payload.skipHolidays,
+        sound: payload.sound,
+        vibrate: payload.vibrate,
+        enabled: existing ? existing.enabled : true,
+        nextTriggerAt: null,
+      };
+
+      if (existing) {
+        await cancelAlarm(existing.id).catch(error => {
+          console.warn("알람 취소 실패", error);
+        });
+      }
+
+      if (base.enabled) {
+        try {
+          const nextFireAt = await scheduleAlarm({ ...base, enabled: true });
+          upsertAlarm({ ...base, nextTriggerAt: nextFireAt, enabled: true });
+        } catch (error) {
+          console.warn("알람 저장 실패", error);
+          Alert.alert("알람 저장 실패", "알람을 예약할 수 없습니다. 다시 시도해 주세요.");
+          upsertAlarm({ ...base, enabled: false, nextTriggerAt: null });
+        }
+      } else {
+        upsertAlarm({ ...base, enabled: false, nextTriggerAt: null });
+      }
     },
-    []
-  );
-
-  const cancelAlarm = useCallback(
-    async (item: AlarmItem) => {
-      await AlarmEngine.cancel(item.id);
-      setAlarms(prev =>
-        prev.map(alarm => (alarm.id === item.id ? { ...alarm, enabled: false } : alarm))
-      );
-    },
-    []
+    [alarms, ensureCorePermissions, upsertAlarm],
   );
 
   const handleToggle = useCallback(
-    (item: AlarmItem) => async (enabled: boolean) => {
+    async (target: AlarmItem, enabled: boolean) => {
       if (enabled) {
-        await scheduleAlarm({ ...item, enabled: true });
-      } else {
-        await cancelAlarm(item);
+        const permissionsOk = await ensureCorePermissions();
+        if (!permissionsOk) {
+          return;
+        }
+        try {
+          const nextFireAt = await scheduleAlarm({ ...target, enabled: true });
+          upsertAlarm({ ...target, enabled: true, nextTriggerAt: nextFireAt });
+        } catch (error) {
+          console.warn("알람 활성화 실패", error);
+          Alert.alert("알람 활성화 실패", "알람을 켜는 중 오류가 발생했습니다.");
+        }
+        return;
       }
+
+      try {
+        await cancelAlarm(target.id);
+      } catch (error) {
+        console.warn("알람 취소 실패", error);
+      }
+      upsertAlarm({ ...target, enabled: false, nextTriggerAt: null });
     },
-    [cancelAlarm, scheduleAlarm]
+    [ensureCorePermissions, upsertAlarm],
   );
 
-  const openModal = useCallback(() => {
-    const now = dayjs();
-    setDraftHour(now.hour());
-    setDraftMinute(now.minute());
-    setDraftLabel('');
-    setModalVisible(true);
+  const openCreateEditor = useCallback(() => {
+    setEditorState({ mode: "create", draft: createDefaultDraft() });
   }, []);
 
-  const closeModal = useCallback(() => {
-    setModalVisible(false);
+  const openEditEditor = useCallback((alarm: AlarmItem) => {
+    setEditorState({ mode: "edit", draft: toDraft(alarm) });
   }, []);
-
-  const handleSave = useCallback(async () => {
-    if (false) {
-      console.warn('정확한 알람 권한이 필요합니다. 설정 화면에서 허용해 주세요.');
-    }
-
-    const newAlarm: AlarmItem = {
-      id: `alarm-${Date.now()}`,
-      label: draftLabel.trim(),
-      hour: draftHour,
-      minute: draftMinute,
-      enabled: true,
-    };
-
-    setAlarms(prev => [...prev, newAlarm].sort((a, b) => {
-      const timeA = a.hour * 60 + a.minute;
-      const timeB = b.hour * 60 + b.minute;
-      return timeA - timeB;
-    }));
-
-    try {
-      await scheduleAlarm(newAlarm);
-    } catch (error) {
-      console.warn('알람 예약 실패', error);
-      setAlarms(prev => prev.filter(alarm => alarm.id !== newAlarm.id));
-    }
-
-    setModalVisible(false);
-  }, [draftHour, draftLabel, draftMinute, false, scheduleAlarm]);
 
   const renderAlarm = useCallback(
     ({ item }: { item: AlarmItem }) => (
-      <AlarmCard alarm={item} onToggle={handleToggle(item)} />
+      <AlarmListItem
+        alarm={item}
+        onPress={() => openEditEditor(item)}
+        onToggle={value => handleToggle(item, value)}
+      />
     ),
-    [handleToggle]
+    [handleToggle, openEditEditor],
+  );
+
+  const keyExtractor = useCallback((item: AlarmItem) => item.id, []);
+
+  const editorVisible = Boolean(editorState);
+  const draftForEditor = useMemo(
+    () => (editorState ? editorState.draft : createDefaultDraft()),
+    [editorState],
+  );
+
+  const showPermissionWarning = useMemo(
+    () => !hasPostNotifications || !hasExactAlarm || !hasVibrate || !hasFineLocation,
+    [hasExactAlarm, hasPostNotifications, hasVibrate, hasFineLocation],
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>알람</Text>
         <Text style={styles.headerSubtitle}>기본 시계 앱처럼 빠르게 관리하세요</Text>
-        {!true && (
-          <Text style={styles.permissionWarning}>
-            정확한 알람 권한이 필요합니다. 설정에서 허용해 주세요.
-          </Text>
-        )}
-        {!true && (
-          <Text style={styles.permissionWarning}>알림 권한이 허용되어야 헤드업 알림을 받을 수 있습니다.</Text>
-        )}
+        {showPermissionWarning ? (
+          <View style={styles.permissionBanner}>
+            <Text style={styles.permissionTitle}>필수 권한이 필요해요</Text>
+            <Text style={styles.permissionMessage}>
+              정확한 알람, 알림, 진동, 위치 권한을 모두 허용해야 제 시간에 알람을 울릴 수 있어요.
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {alarms.length === 0 ? (
@@ -202,62 +269,30 @@ const HomeScreen: React.FC = () => {
       ) : (
         <FlatList
           data={alarms}
-          keyExtractor={item => item.id}
+          keyExtractor={keyExtractor}
           renderItem={renderAlarm}
           contentContainerStyle={styles.listContent}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
 
-      <Pressable style={styles.fab} onPress={openModal} accessibilityLabel='알람 추가'>
+      <Pressable style={styles.fab} onPress={openCreateEditor} accessibilityLabel="알람 추가">
         <Text style={styles.fabLabel}>+</Text>
       </Pressable>
 
-      <Modal animationType='slide' transparent visible={isModalVisible} onRequestClose={closeModal}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>알람 추가</Text>
-            <View style={styles.timePickerRow}>
-              <View style={styles.timeColumn}>
-                <TimeAdjustButton label='▲' onPress={incrementHour} />
-                <Text style={styles.timeValue}>{pad(draftHour)}</Text>
-                <TimeAdjustButton label='▼' onPress={decrementHour} />
-              </View>
-              <Text style={styles.timeColon}>:</Text>
-              <View style={styles.timeColumn}>
-                <TimeAdjustButton label='▲' onPress={incrementMinute} />
-                <Text style={styles.timeValue}>{pad(draftMinute)}</Text>
-                <TimeAdjustButton label='▼' onPress={decrementMinute} />
-              </View>
-            </View>
-            <View style={styles.labelSection}>
-              <Text style={styles.labelCaption}>레이블</Text>
-              <TextInput
-                value={draftLabel}
-                onChangeText={setDraftLabel}
-                placeholder='예: 기상, 회의'
-                style={styles.labelInput}
-              />
-            </View>
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalButton} onPress={closeModal}>
-                <Text style={styles.modalButtonText}>취소</Text>
-              </Pressable>
-              <Pressable style={[styles.modalButton, styles.modalPrimaryButton]} onPress={handleSave}>
-                <Text style={[styles.modalButtonText, styles.modalPrimaryLabel]}>저장</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+      <AlarmEditorModal
+        visible={editorVisible}
+        draft={draftForEditor}
+        onCancel={closeEditor}
+        onSave={handleSaveDraft}
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f7fb',
+    backgroundColor: "#f6f7fb",
   },
   header: {
     paddingHorizontal: 24,
@@ -266,64 +301,39 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 32,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
   headerSubtitle: {
     marginTop: 4,
     fontSize: 15,
-    color: '#6b7280',
+    color: "#6b7280",
   },
-  permissionWarning: {
-    marginTop: 8,
+  permissionBanner: {
+    marginTop: 16,
+    borderRadius: 16,
+    backgroundColor: "#fef3c7",
+    padding: 16,
+  },
+  permissionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#92400e",
+  },
+  permissionMessage: {
+    marginTop: 4,
     fontSize: 13,
-    color: '#dc2626',
+    color: "#92400e",
   },
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 120,
   },
-  cardWrapper: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    elevation: 2,
-    shadowColor: '#00000033',
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardTime: {
-    fontSize: 42,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  cardBody: {
-    marginTop: 8,
-  },
-  cardLabel: {
-    fontSize: 16,
-    color: '#1f2937',
-    fontWeight: '500',
-  },
-  cardNext: {
-    marginTop: 2,
-    fontSize: 13,
-    color: '#6b7280',
-  },
-  separator: {
-    height: 16,
-  },
   emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 120,
+    paddingHorizontal: 24,
   },
   emptyEmoji: {
     fontSize: 48,
@@ -331,127 +341,35 @@ const styles = StyleSheet.create({
   emptyTitle: {
     marginTop: 12,
     fontSize: 20,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontWeight: "600",
+    color: "#1f2937",
   },
   emptySubtitle: {
     marginTop: 4,
     fontSize: 14,
-    color: '#6b7280',
+    color: "#6b7280",
   },
   fab: {
-    position: 'absolute',
+    position: "absolute",
     right: 24,
     bottom: 36,
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#2563eb',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#2563eb",
+    alignItems: "center",
+    justifyContent: "center",
     elevation: 5,
-    shadowColor: '#2563eb',
+    shadowColor: "#2563eb",
     shadowOpacity: 0.4,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
   },
   fabLabel: {
     fontSize: 36,
-    color: '#fff',
+    color: "#fff",
     marginTop: -4,
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: '#00000066',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    width: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
-  },
-  timePickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  timeColumn: {
-    alignItems: 'center',
-  },
-  timeColon: {
-    fontSize: 32,
-    fontWeight: '600',
-    marginHorizontal: 12,
-  },
-  adjustButton: {
-    width: 60,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#e5e7eb',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  adjustButtonLabel: {
-    fontSize: 18,
-    color: '#1f2937',
-  },
-  timeValue: {
-    fontSize: 36,
-    fontWeight: '600',
-    color: '#111827',
-    marginVertical: 12,
-  },
-  labelSection: {
-    marginTop: 32,
-  },
-  labelCaption: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 6,
-  },
-  labelInput: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#111827',
-    backgroundColor: '#f9fafb',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 32,
-    columnGap: 12,
-  },
-  modalButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 8,
-    backgroundColor: '#e5e7eb',
-  },
-  modalButtonText: {
-    fontSize: 15,
-    color: '#1f2937',
-    fontWeight: '600',
-  },
-  modalPrimaryButton: {
-    backgroundColor: '#2563eb',
-  },
-  modalPrimaryLabel: {
-    color: '#fff',
-  },
 });
-    
+
 export default HomeScreen;

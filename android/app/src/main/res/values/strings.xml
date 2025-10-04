@@ -6,4 +6,9 @@
     <string name="alarm_channel_description_silent">Background updates without audible alert</string>
     <string name="alarm_notification_title">Alarm ringing</string>
     <string name="alarm_notification_body">Tap to manage or dismiss this alarm.</string>
+    <string name="alarm_running_message">알람이 울리는 중입니다.</string>
+    <string name="alarm_notification_heads_up_title">Alarm ringing</string>
+    <string name="alarm_notification_heads_up_message">상단에서 바로 알람을 제어하세요.</string>
+    <string name="alarm_action_dismiss">Dismiss</string>
+    <string name="alarm_action_snooze">Snooze</string>
 </resources>
