@@ -1,8 +1,8 @@
 package com.alarm_project.alarm
 
 import android.app.Service
-import android.content.pm.ServiceInfo
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -148,15 +148,33 @@ class AlarmService : Service() {
         val updatedSpec = spec.copy(fireAt = nextFireAt)
         AlarmStore.save(this, updatedSpec)
         AlarmScheduler.schedule(this, updatedSpec)
+        AlarmDatabase.updateNextTrigger(this, spec.id, nextFireAt)
+        AlarmSyncBridge.notifyStorageChanged(this, spec.id)
         AlarmEventDispatcher.send(this, SnoozedEvent(spec.id, nextFireAt, minutes))
         stopRinging()
         stopSelf()
     }
 
     private fun dismiss(spec: AlarmSpec) {
+        val nextFireAt = AlarmDatabase.computeNextFireAt(this, spec.id, spec.fireAt)
+
         AlarmScheduler.cancel(this, spec.id)
         AlarmStore.remove(this, spec.id)
-        AlarmEventDispatcher.send(this, DismissedEvent(spec.id, System.currentTimeMillis()))
+
+        val dismissedAt = System.currentTimeMillis()
+
+        if (nextFireAt != null) {
+            val nextSpec = spec.copy(fireAt = nextFireAt)
+            AlarmStore.save(this, nextSpec)
+            AlarmScheduler.schedule(this, nextSpec)
+            AlarmDatabase.updateNextTrigger(this, spec.id, nextFireAt)
+            AlarmEventDispatcher.send(this, ScheduledEvent(spec.id, nextFireAt))
+        } else {
+            AlarmDatabase.updateNextTrigger(this, spec.id, null)
+        }
+
+        AlarmSyncBridge.notifyStorageChanged(this, spec.id)
+        AlarmEventDispatcher.send(this, DismissedEvent(spec.id, dismissedAt))
         stopRinging()
         stopSelf()
     }

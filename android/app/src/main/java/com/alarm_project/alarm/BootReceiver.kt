@@ -13,6 +13,10 @@ class BootReceiver : BroadcastReceiver() {
                 .onFailure { error ->
                     AlarmEventDispatcher.send(context, ErrorEvent(spec.id, "boot_reschedule_failed", error.message ?: ""))
                 }
+                .onSuccess {
+                    AlarmDatabase.setEnabled(context, spec.id, true)
+                    AlarmSyncBridge.notifyStorageChanged(context, spec.id)
+                }
         }
     }
 }

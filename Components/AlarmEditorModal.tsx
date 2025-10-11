@@ -154,6 +154,8 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
       skipHolidays: state.skipHolidays,
       sound: state.sound,
       vibrate: state.vibrate,
+      policyMode: draft.policyMode ?? "normal",
+      policyPayload: draft.policyPayload ?? null,
     };
     onSave(payload);
   }, [onSave, state]);

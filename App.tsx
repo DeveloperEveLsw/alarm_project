@@ -4,7 +4,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { NavigationContainer, RouteProp, createNavigationContainerRef } from '@react-navigation/native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ko';
 
@@ -109,6 +109,7 @@ function App() {
         <SafeAreaView style={{ flex: 1 }}>
           <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
           <NavigationContainer ref={navigationRef}>
+            <AlarmQueryInvalidationListener />
             <Stack.Navigator>
               <Stack.Screen name="Main" component={MainTab} options={{ headerShown: false }} />
               <Stack.Screen
@@ -142,5 +143,34 @@ function App() {
     </QueryClientProvider>
   );
 }
+
+const AlarmQueryInvalidationListener: React.FC = () => {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const unsubscribe = AlarmEngine.addListener(event => {
+      switch (event.type) {
+        case 'SCHEDULED':
+        case 'SNOOZED':
+        case 'DISMISSED':
+        case 'ERROR':
+        case 'FIRED':
+        case 'SYNC':
+          queryClient.invalidateQueries({ queryKey: ['alarms'] }).catch(() => {});
+          break;
+        default:
+          break;
+      }
+    });
+
+    return unsubscribe;
+  }, [queryClient]);
+
+  return null;
+};
 
 export default App;

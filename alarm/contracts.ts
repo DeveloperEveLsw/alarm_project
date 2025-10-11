@@ -127,7 +127,19 @@ export type ErrorEvent = {
   message: string;
 };
 
-export type AlarmEvent = ScheduledEvent | FiredEvent | SnoozedEvent | DismissedEvent | ErrorEvent;
+export type SyncEvent = {
+  type: "SYNC";
+  id: string;
+  scope: string;
+};
+
+export type AlarmEvent =
+  | ScheduledEvent
+  | FiredEvent
+  | SnoozedEvent
+  | DismissedEvent
+  | SyncEvent
+  | ErrorEvent;
 
 export const serializeAlarmSpec = (spec: AlarmSpec): string => JSON.stringify(spec);
 

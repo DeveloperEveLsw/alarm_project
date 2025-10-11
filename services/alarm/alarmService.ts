@@ -38,27 +38,38 @@ export const computeNextTrigger = (alarm: AlarmBase, baseTime: number = Date.now
   return candidate.add(1, "day");
 };
 
-const buildAlarmSpec = (alarm: AlarmItem, nextFireAt: number): AlarmSpec => ({
-  id: alarm.id,
-  fireAt: nextFireAt,
-  policy: {
-    mode: "normal",
-    repeatDays: alarm.repeatDays,
-  },
-  label: alarm.label || undefined,
-  allowWhileIdle: true,
-  channel: "alarms",
-  metadata: {
-    localTime: `${String(alarm.hour).padStart(2, "0")}:${String(alarm.minute).padStart(2, "0")}`,
-    repeatDays: alarm.repeatDays.join(","),
-    skipHolidays: String(alarm.skipHolidays),
-    sound: alarm.sound,
-    vibrate: String(alarm.vibrate),
-  },
-});
+const buildAlarmSpec = (alarm: AlarmItem, nextFireAt: number): AlarmSpec => {
+  const policyExtras =
+    alarm.policyPayload && typeof alarm.policyPayload === "object"
+      ? (alarm.policyPayload as Partial<AlarmSpec["policy"]>)
+      : {};
 
-export const scheduleAlarm = async (alarm: AlarmItem): Promise<number> => {
-  const nextFireAt = computeNextTrigger(alarm).valueOf();
+  return {
+    id: alarm.id,
+    fireAt: nextFireAt,
+    policy: {
+      mode: alarm.policyMode ?? "normal",
+      ...policyExtras,
+    },
+    label: alarm.label || undefined,
+    allowWhileIdle: true,
+    channel: "alarms",
+    metadata: {
+      localTime: `${String(alarm.hour).padStart(2, "0")}:${String(alarm.minute).padStart(2, "0")}`,
+      repeatDays: alarm.repeatDays.join(","),
+      skipHolidays: String(alarm.skipHolidays),
+      sound: alarm.sound,
+      vibrate: String(alarm.vibrate),
+      policyMode: alarm.policyMode ?? "normal",
+    },
+  };
+};
+
+export const scheduleAlarm = async (alarm: AlarmItem, precomputedFireAt?: number): Promise<number> => {
+  const nextFireAt =
+    typeof precomputedFireAt === "number" && Number.isFinite(precomputedFireAt)
+      ? precomputedFireAt
+      : computeNextTrigger(alarm).valueOf();
   const spec = buildAlarmSpec(alarm, nextFireAt);
   await AlarmEngine.scheduleExact(spec);
   return nextFireAt;

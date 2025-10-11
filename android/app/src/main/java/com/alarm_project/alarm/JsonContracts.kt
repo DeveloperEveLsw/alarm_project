@@ -144,6 +144,10 @@ data class SnoozedEvent(override val id: String, val nextFireAt: Long, val minut
 data class DismissedEvent(override val id: String, val dismissedAtUtc: Long) : AlarmEvent
 
 @Serializable
+@SerialName("SYNC")
+data class SyncEvent(override val id: String, val scope: String) : AlarmEvent
+
+@Serializable
 @SerialName("ERROR")
 data class ErrorEvent(override val id: String, val code: String, val message: String) : AlarmEvent
 
@@ -162,6 +166,7 @@ object AlarmJson {
             subclass(FiredEvent::class)
             subclass(SnoozedEvent::class)
             subclass(DismissedEvent::class)
+            subclass(SyncEvent::class)
             subclass(ErrorEvent::class)
         }
     }

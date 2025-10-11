@@ -38,6 +38,8 @@ class AlarmEngineModule(private val reactContext: ReactApplicationContext) : Rea
             val spec = AlarmJson.decodeSpec(specJson)
             AlarmStore.save(reactContext, spec)
             AlarmScheduler.schedule(reactContext, spec)
+            AlarmDatabase.updateNextTrigger(reactContext, spec.id, spec.fireAt)
+            AlarmSyncBridge.notifyStorageChanged(reactContext, spec.id)
             AlarmEventDispatcher.send(reactContext, ScheduledEvent(spec.id, spec.fireAt))
             promise.resolve(null)
         } catch (error: Exception) {
@@ -50,6 +52,8 @@ class AlarmEngineModule(private val reactContext: ReactApplicationContext) : Rea
         try {
             AlarmScheduler.cancel(reactContext, alarmId)
             AlarmStore.remove(reactContext, alarmId)
+            AlarmDatabase.updateNextTrigger(reactContext, alarmId, null)
+            AlarmSyncBridge.notifyStorageChanged(reactContext, alarmId)
             promise.resolve(null)
         } catch (error: Exception) {
             promise.reject("cancel_error", error)

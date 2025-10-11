@@ -8,29 +8,26 @@ import {
   View,
 } from "react-native";
 import dayjs from "dayjs";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import AlarmEditorModal from "../Components/AlarmEditorModal";
 import AlarmListItem from "../Components/AlarmListItem";
-import { scheduleAlarm, cancelAlarm } from "../services/alarm/alarmService";
+import { fetchAlarms } from "../services/alarm/alarmStorage";
+import {
+  createAlarmFromDraft,
+  deleteAlarms as deleteAlarmsWorkflow,
+  toggleAlarmEnabled,
+  updateAlarmFromDraft,
+} from "../services/alarm/alarmWorkflow";
 import { useAlarmPermissionsStore } from "../stores/alarmPermissionsStore";
 import type { AlarmPermissionState } from "../stores/alarmPermissionsStore";
 import type { AlarmDraft, AlarmItem } from "../types/alarm.types";
-import { ensureLocationForegroundServicePermission } from "../services/permissionHelpers";
 
 const DEFAULT_SOUND = "Arcade";
 
 const selectHasExactAlarm = (state: AlarmPermissionState) => state.hasExactAlarm;
 const selectHasPostNotifications = (state: AlarmPermissionState) => state.hasPostNotifications;
 const selectHasVibrate = (state: AlarmPermissionState) => state.hasVibrate;
-const selectHasFineLocation = (state: AlarmPermissionState) => state.hasFineLocation;
-
-const sortAlarms = (items: AlarmItem[]): AlarmItem[] =>
-  [...items].sort((a, b) => {
-    const timeA = a.hour * 60 + a.minute;
-    const timeB = b.hour * 60 + b.minute;
-    if (timeA !== timeB) return timeA - timeB;
-    return a.id.localeCompare(b.id);
-  });
 
 const createDefaultDraft = (): AlarmDraft => {
   const base = dayjs().add(1, "minute");
@@ -42,6 +39,8 @@ const createDefaultDraft = (): AlarmDraft => {
     skipHolidays: false,
     sound: DEFAULT_SOUND,
     vibrate: true,
+    policyMode: "normal",
+    policyPayload: null,
   };
 };
 
@@ -54,20 +53,44 @@ const toDraft = (alarm: AlarmItem): AlarmDraft => ({
   skipHolidays: alarm.skipHolidays,
   sound: alarm.sound,
   vibrate: alarm.vibrate,
+  policyMode: alarm.policyMode ?? "normal",
+  policyPayload: alarm.policyPayload ?? null,
 });
 
+type EditorState =
+  | {
+      mode: "create";
+      draft: AlarmDraft;
+    }
+  | {
+      mode: "edit";
+      draft: AlarmDraft;
+      alarm: AlarmItem;
+    };
+
 const HomeScreen: React.FC = () => {
-  const [alarms, setAlarms] = useState<AlarmItem[]>([]);
-  const [editorState, setEditorState] = useState<{ mode: "create" | "edit"; draft: AlarmDraft } | null>(null);
+  const [editorState, setEditorState] = useState<EditorState | null>(null);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const queryClient = useQueryClient();
+
+  const alarmsQuery = useQuery<AlarmItem[]>({
+    queryKey: ["alarms"],
+    queryFn: fetchAlarms,
+  });
+
+  const alarms = alarmsQuery.data ?? [];
+  const isLoadingAlarms = alarmsQuery.isLoading;
+  const selectionCount = selectedIds.length;
+  const hasAlarms = alarms.length > 0;
+  const isAllSelected = hasAlarms && selectionCount === alarms.length;
 
   const hasExactAlarm = useAlarmPermissionsStore(selectHasExactAlarm);
   const hasPostNotifications = useAlarmPermissionsStore(selectHasPostNotifications);
   const hasVibrate = useAlarmPermissionsStore(selectHasVibrate);
-  const hasFineLocation = useAlarmPermissionsStore(selectHasFineLocation);
   const {
     hydratePermissions,
     requestPostNotifications,
-    requestFineLocation,
     requestVibrate,
     openExactAlarmSettings,
   } = useAlarmPermissionsStore.getState();
@@ -96,19 +119,6 @@ const HomeScreen: React.FC = () => {
       }
     }
 
-    if (!hasFineLocation) {
-      const granted = await requestFineLocation();
-      if (!granted) {
-        Alert.alert("권한 필요", "위치 권한을 허용해야 알람 서비스가 안정적으로 동작합니다.");
-        return false;
-      }
-    }
-
-    if (!(await ensureLocationForegroundServicePermission())) {
-      Alert.alert("권한 필요", "포그라운드 위치 권한을 허용해야 알람이 정확히 동작합니다.");
-      return false;
-    }
-
     if (!hasExactAlarm) {
       await openExactAlarmSettings();
       await hydratePermissions();
@@ -124,21 +134,135 @@ const HomeScreen: React.FC = () => {
     hasExactAlarm,
     hasPostNotifications,
     hasVibrate,
-    hasFineLocation,
     hydratePermissions,
     openExactAlarmSettings,
     requestPostNotifications,
     requestVibrate,
-    requestFineLocation,
   ]);
+
+  const invalidateAlarms = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ["alarms"] }),
+    [queryClient],
+  );
+
+  const createAlarmMutation = useMutation({
+    mutationFn: createAlarmFromDraft,
+    onSuccess: () => {
+      void invalidateAlarms();
+    },
+  });
+
+  const updateAlarmMutation = useMutation({
+    mutationFn: ({ alarm, draft }: { alarm: AlarmItem; draft: AlarmDraft }) =>
+      updateAlarmFromDraft(alarm, draft),
+    onSuccess: () => {
+      void invalidateAlarms();
+    },
+  });
+
+  const toggleAlarmMutation = useMutation({
+    mutationFn: ({ alarm, enabled }: { alarm: AlarmItem; enabled: boolean }) =>
+      toggleAlarmEnabled(alarm, enabled),
+    onSuccess: () => {
+      void invalidateAlarms();
+    },
+  });
 
   const closeEditor = useCallback(() => {
     setEditorState(null);
   }, []);
 
-  const upsertAlarm = useCallback((next: AlarmItem) => {
-    setAlarms(prev => sortAlarms([...prev.filter(item => item.id !== next.id), next]));
+  const exitSelectionMode = useCallback(() => {
+    setIsSelectionMode(false);
+    setSelectedIds([]);
   }, []);
+
+  const enterSelectionMode = useCallback((initialId?: string) => {
+    setIsSelectionMode(true);
+    if (initialId) {
+      setSelectedIds([initialId]);
+    } else {
+      setSelectedIds([]);
+    }
+  }, []);
+
+  const toggleSelection = useCallback((id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(existing => existing !== id) : [...prev, id],
+    );
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+      return;
+    }
+    setSelectedIds(alarms.map(item => item.id));
+    setIsSelectionMode(true);
+  }, [alarms, isAllSelected]);
+
+  const handleLongPressCard = useCallback(
+    (id: string) => {
+      enterSelectionMode(id);
+    },
+    [enterSelectionMode],
+  );
+
+  const deleteAlarmsMutation = useMutation({
+    mutationFn: (targets: AlarmItem[]) => deleteAlarmsWorkflow(targets),
+    onSuccess: () => {
+      exitSelectionMode();
+      void invalidateAlarms();
+    },
+  });
+
+  const handleDeleteSelected = useCallback(() => {
+    if (selectionCount === 0 || deleteAlarmsMutation.isPending) {
+      return;
+    }
+
+    const selectedSet = new Set(selectedIds);
+    const targets = alarms.filter(alarm => selectedSet.has(alarm.id));
+
+    if (targets.length === 0) {
+      exitSelectionMode();
+      return;
+    }
+
+    Alert.alert(
+      "알람 삭제",
+      `${targets.length}개의 알람을 삭제할까요?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제",
+          style: "destructive",
+          onPress: () => {
+            deleteAlarmsMutation
+              .mutateAsync(targets)
+              .catch(error => {
+                console.warn("[Alarm] Failed to delete alarms", error);
+                Alert.alert("삭제 실패", "알람을 삭제하는 중 오류가 발생했습니다.");
+              });
+          },
+        },
+      ],
+    );
+  }, [alarms, deleteAlarmsMutation, exitSelectionMode, selectedIds, selectionCount]);
+
+  useEffect(() => {
+    if (selectedIds.length === 0) {
+      return;
+    }
+    const validIds = new Set(alarms.map(item => item.id));
+    const filtered = selectedIds.filter(id => validIds.has(id));
+    if (filtered.length !== selectedIds.length) {
+      setSelectedIds(filtered);
+    }
+    if (isSelectionMode && filtered.length === 0) {
+      setIsSelectionMode(false);
+    }
+  }, [alarms, isSelectionMode, selectedIds]);
 
   const handleSaveDraft = useCallback(
     async (payload: AlarmDraft) => {
@@ -147,43 +271,19 @@ const HomeScreen: React.FC = () => {
         return;
       }
 
-      setEditorState(null);
-
-      const existing = payload.id ? alarms.find(alarm => alarm.id === payload.id) : undefined;
-      const id = payload.id ?? `alarm-${Date.now()}`;
-      const base: AlarmItem = {
-        id,
-        label: payload.label,
-        hour: payload.hour,
-        minute: payload.minute,
-        repeatDays: payload.repeatDays,
-        skipHolidays: payload.skipHolidays,
-        sound: payload.sound,
-        vibrate: payload.vibrate,
-        enabled: existing ? existing.enabled : true,
-        nextTriggerAt: null,
-      };
-
-      if (existing) {
-        await cancelAlarm(existing.id).catch(error => {
-          console.warn("알람 취소 실패", error);
-        });
-      }
-
-      if (base.enabled) {
-        try {
-          const nextFireAt = await scheduleAlarm({ ...base, enabled: true });
-          upsertAlarm({ ...base, nextTriggerAt: nextFireAt, enabled: true });
-        } catch (error) {
-          console.warn("알람 저장 실패", error);
-          Alert.alert("알람 저장 실패", "알람을 예약할 수 없습니다. 다시 시도해 주세요.");
-          upsertAlarm({ ...base, enabled: false, nextTriggerAt: null });
+      try {
+        if (editorState?.mode === "edit") {
+          await updateAlarmMutation.mutateAsync({ alarm: editorState.alarm, draft: payload });
+        } else {
+          await createAlarmMutation.mutateAsync(payload);
         }
-      } else {
-        upsertAlarm({ ...base, enabled: false, nextTriggerAt: null });
+        setEditorState(null);
+      } catch (error) {
+        console.warn("[Alarm] Failed to save alarm", error);
+        Alert.alert("알람 저장 실패", "알람을 저장하는 중 오류가 발생했습니다.");
       }
     },
-    [alarms, ensureCorePermissions, upsertAlarm],
+    [createAlarmMutation, editorState, ensureCorePermissions, updateAlarmMutation],
   );
 
   const handleToggle = useCallback(
@@ -193,33 +293,37 @@ const HomeScreen: React.FC = () => {
         if (!permissionsOk) {
           return;
         }
-        try {
-          const nextFireAt = await scheduleAlarm({ ...target, enabled: true });
-          upsertAlarm({ ...target, enabled: true, nextTriggerAt: nextFireAt });
-        } catch (error) {
-          console.warn("알람 활성화 실패", error);
-          Alert.alert("알람 활성화 실패", "알람을 켜는 중 오류가 발생했습니다.");
-        }
-        return;
       }
 
       try {
-        await cancelAlarm(target.id);
+        await toggleAlarmMutation.mutateAsync({ alarm: target, enabled });
       } catch (error) {
-        console.warn("알람 취소 실패", error);
+        console.warn("[Alarm] Failed to toggle alarm", error);
+        Alert.alert(
+          "알람 처리 실패",
+          enabled
+            ? "알람을 켜는 중 오류가 발생했습니다."
+            : "알람을 끄는 중 오류가 발생했습니다.",
+        );
       }
-      upsertAlarm({ ...target, enabled: false, nextTriggerAt: null });
     },
-    [ensureCorePermissions, upsertAlarm],
+    [ensureCorePermissions, toggleAlarmMutation],
   );
 
   const openCreateEditor = useCallback(() => {
     setEditorState({ mode: "create", draft: createDefaultDraft() });
   }, []);
 
-  const openEditEditor = useCallback((alarm: AlarmItem) => {
-    setEditorState({ mode: "edit", draft: toDraft(alarm) });
-  }, []);
+  const openEditEditor = useCallback(
+    (alarm: AlarmItem) => {
+      if (isSelectionMode) {
+        toggleSelection(alarm.id);
+        return;
+      }
+      setEditorState({ mode: "edit", draft: toDraft(alarm), alarm });
+    },
+    [isSelectionMode, toggleSelection],
+  );
 
   const renderAlarm = useCallback(
     ({ item }: { item: AlarmItem }) => (
@@ -227,9 +331,20 @@ const HomeScreen: React.FC = () => {
         alarm={item}
         onPress={() => openEditEditor(item)}
         onToggle={value => handleToggle(item, value)}
+        onLongPress={() => handleLongPressCard(item.id)}
+        onToggleSelection={() => toggleSelection(item.id)}
+        selectionMode={isSelectionMode}
+        selected={selectedIds.includes(item.id)}
       />
     ),
-    [handleToggle, openEditEditor],
+    [
+      handleLongPressCard,
+      handleToggle,
+      isSelectionMode,
+      openEditEditor,
+      selectedIds,
+      toggleSelection,
+    ],
   );
 
   const keyExtractor = useCallback((item: AlarmItem) => item.id, []);
@@ -241,26 +356,86 @@ const HomeScreen: React.FC = () => {
   );
 
   const showPermissionWarning = useMemo(
-    () => !hasPostNotifications || !hasExactAlarm || !hasVibrate || !hasFineLocation,
-    [hasExactAlarm, hasPostNotifications, hasVibrate, hasFineLocation],
+    () => !hasPostNotifications || !hasExactAlarm || !hasVibrate,
+    [hasExactAlarm, hasPostNotifications, hasVibrate],
   );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>알람</Text>
-        <Text style={styles.headerSubtitle}>기본 시계 앱처럼 빠르게 관리하세요</Text>
-        {showPermissionWarning ? (
-          <View style={styles.permissionBanner}>
-            <Text style={styles.permissionTitle}>필수 권한이 필요해요</Text>
-            <Text style={styles.permissionMessage}>
-              정확한 알람, 알림, 진동, 위치 권한을 모두 허용해야 제 시간에 알람을 울릴 수 있어요.
-            </Text>
+        {isSelectionMode ? (
+          <View style={styles.selectionHeader}>
+            <Pressable onPress={exitSelectionMode} accessibilityLabel="선택 취소">
+              <Text style={styles.selectionAction}>취소</Text>
+            </Pressable>
+            <View style={styles.selectionActions}>
+              <Pressable
+                onPress={toggleSelectAll}
+                accessibilityLabel="모두 선택"
+                disabled={!hasAlarms || deleteAlarmsMutation.isPending}
+              >
+                <Text
+                  style={[
+                    styles.selectionAction,
+                    !hasAlarms || deleteAlarmsMutation.isPending
+                      ? styles.selectionActionDisabled
+                      : null,
+                  ]}
+                >
+                  {isAllSelected ? "모두 해제" : "모두 선택"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleDeleteSelected}
+                accessibilityLabel="선택 삭제"
+                disabled={selectionCount === 0 || deleteAlarmsMutation.isPending}
+              >
+                <Text
+                  style={[
+                    styles.selectionAction,
+                    styles.selectionDelete,
+                    selectionCount === 0 || deleteAlarmsMutation.isPending
+                      ? styles.selectionActionDisabled
+                      : null,
+                  ]}
+                >
+                  삭제
+                </Text>
+              </Pressable>
+            </View>
           </View>
-        ) : null}
+        ) : (
+          <>
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.headerTitle}>알람</Text>
+                <Text style={styles.headerSubtitle}>기본 시계 앱처럼 빠르게 관리하세요</Text>
+              </View>
+              {hasAlarms ? (
+                <Pressable onPress={() => enterSelectionMode()} accessibilityLabel="알람 편집">
+                  <Text style={styles.editButton}>편집</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {showPermissionWarning ? (
+              <View style={styles.permissionBanner}>
+                <Text style={styles.permissionTitle}>필수 권한이 필요해요</Text>
+                <Text style={styles.permissionMessage}>
+                  정확한 알람, 알림, 진동, 위치 권한을 모두 허용해야 제 시간에 알람을 울릴 수 있어요.
+                </Text>
+              </View>
+            ) : null}
+          </>
+        )}
       </View>
 
-      {alarms.length === 0 ? (
+      {isLoadingAlarms ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyEmoji}>⏳</Text>
+          <Text style={styles.emptyTitle}>알람을 불러오는 중입니다</Text>
+          <Text style={styles.emptySubtitle}>잠시만 기다려 주세요.</Text>
+        </View>
+      ) : alarms.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyEmoji}>⏰</Text>
           <Text style={styles.emptyTitle}>등록된 알람이 없습니다</Text>
@@ -271,6 +446,7 @@ const HomeScreen: React.FC = () => {
           data={alarms}
           keyExtractor={keyExtractor}
           renderItem={renderAlarm}
+          extraData={{ isSelectionMode, selectedIds }}
           contentContainerStyle={styles.listContent}
         />
       )}
@@ -299,6 +475,11 @@ const styles = StyleSheet.create({
     paddingTop: 32,
     paddingBottom: 16,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   headerTitle: {
     fontSize: 32,
     fontWeight: "700",
@@ -308,6 +489,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 15,
     color: "#6b7280",
+  },
+  editButton: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#2563eb",
   },
   permissionBanner: {
     marginTop: 16,
@@ -328,6 +514,27 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 120,
+  },
+  selectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  selectionActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  selectionAction: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2563eb",
+    marginLeft: 20,
+  },
+  selectionActionDisabled: {
+    color: "#9ca3af",
+  },
+  selectionDelete: {
+    color: "#ef4444",
   },
   emptyState: {
     alignItems: "center",

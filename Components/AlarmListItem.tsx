@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import dayjs from "dayjs";
 
@@ -8,11 +8,23 @@ type Props = {
   alarm: AlarmItem;
   onToggle: (value: boolean) => void;
   onPress: () => void;
+  onLongPress?: () => void;
+  onToggleSelection?: () => void;
+  selectionMode?: boolean;
+  selected?: boolean;
 };
 
 const WEEK_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-const AlarmListItem: React.FC<Props> = ({ alarm, onToggle, onPress }) => {
+const AlarmListItem: React.FC<Props> = ({
+  alarm,
+  onToggle,
+  onPress,
+  onLongPress,
+  onToggleSelection,
+  selectionMode = false,
+  selected = false,
+}) => {
   const nextTriggerLabel = useMemo(() => {
     if (!alarm.enabled || !alarm.nextTriggerAt) {
       return "꺼짐";
@@ -30,11 +42,46 @@ const AlarmListItem: React.FC<Props> = ({ alarm, onToggle, onPress }) => {
   const displayHour = dayjs().hour(alarm.hour).minute(alarm.minute);
   const formattedTime = displayHour.format("A hh:mm");
 
+  const longPressTriggeredRef = useRef(false);
+
+  const handlePress = () => {
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false;
+      return;
+    }
+
+    if (selectionMode) {
+      onToggleSelection?.();
+      return;
+    }
+    onPress();
+  };
+
+  const handleLongPress = () => {
+    longPressTriggeredRef.current = true;
+    onLongPress?.();
+  };
+
   return (
-    <Pressable onPress={onPress} style={styles.card}>
+    <Pressable
+      onPress={handlePress}
+      onLongPress={handleLongPress}
+      android_ripple={{ color: "#e5e7eb" }}
+      style={({ pressed }) => [
+        styles.card,
+        selectionMode && styles.cardSelecting,
+        selected && styles.cardSelected,
+        pressed && styles.cardPressed,
+      ]}
+    >
+      {selectionMode ? (
+        <View style={[styles.selectionIndicator, selected && styles.selectionIndicatorSelected]}>
+          {selected ? <Text style={styles.selectionIndicatorText}>✓</Text> : null}
+        </View>
+      ) : null}
       <View style={styles.header}>
         <Text style={styles.timeLabel}>{formattedTime}</Text>
-        <Switch value={alarm.enabled} onValueChange={onToggle} />
+        <Switch value={alarm.enabled} onValueChange={onToggle} disabled={selectionMode} />
       </View>
       <View style={styles.body}>
         <Text style={styles.title}>{alarm.label || "알람"}</Text>
@@ -57,6 +104,16 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
     marginBottom: 16,
+    position: "relative",
+  },
+  cardSelecting: {
+    paddingLeft: 56,
+  },
+  cardSelected: {
+    backgroundColor: "#e8f1ff",
+  },
+  cardPressed: {
+    opacity: 0.9,
   },
   header: {
     flexDirection: "row",
@@ -80,6 +137,28 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     color: "#6b7280",
+  },
+  selectionIndicator: {
+    position: "absolute",
+    left: 20,
+    top: 22,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#cbd5f5",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  selectionIndicatorSelected: {
+    borderColor: "#2563eb",
+    backgroundColor: "#2563eb",
+  },
+  selectionIndicatorText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
   },
 });
 

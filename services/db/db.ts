@@ -39,20 +39,18 @@ export class DBManager {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           title TEXT NOT NULL,
           description TEXT,
-          
-          due_date TEXT,               -- 'YYYY-MM-DD'
-          due_time TEXT,               -- 'HH:mm'
 
-          -- 반복 일정일 경우
-          is_repeating INTEGER DEFAULT 0,         -- 0: 단일, 1: 반복
-          repeat_type TEXT,                       -- 'weekly' or 'monthly'
-          repeat_weekday TEXT,                    -- JSON-encoded weekday indices (e.g. '[1,2,3]')
-          repeat_day_of_month INTEGER,            -- 1 ~ 31 ← 월 반복용
-          
-          -- 연결 관계
-          dday_id INTEGER,                        -- Dday 연결 (nullable)
-          alarm_id INTEGER,                       -- Alarm 연결 (nullable)
-          alarm_set_id INTEGER,                   -- AlarmSet 연결 (nullable)
+          due_date TEXT,
+          due_time TEXT,
+
+          is_repeating INTEGER DEFAULT 0,
+          repeat_type TEXT,
+          repeat_weekday TEXT,
+          repeat_day_of_month INTEGER,
+
+          dday_id INTEGER,
+          alarm_id TEXT,
+          alarm_set_id TEXT,
 
           created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 
@@ -73,27 +71,56 @@ export class DBManager {
 
       await db.executeSql(`
         CREATE TABLE IF NOT EXISTS AlarmSet (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT,
-          representative_alarm_id INTEGER,
-          FOREIGN KEY (representative_alarm_id) REFERENCES Alarm(id) ON DELETE SET NULL
+          id TEXT PRIMARY KEY,
+          label TEXT NOT NULL DEFAULT '',
+          default_sound TEXT NOT NULL DEFAULT '',
+          default_mode TEXT NOT NULL DEFAULT 'normal'
         );
       `);
 
       await db.executeSql(`
         CREATE TABLE IF NOT EXISTS Alarm (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          time TEXT NOT NULL,
+          id TEXT PRIMARY KEY,
+          alarm_set_id TEXT,
           dday_id INTEGER,
-          alarm_set_id INTEGER,
-          FOREIGN KEY (dday_id) REFERENCES Dday(id) ON DELETE CASCADE,
-          FOREIGN KEY (alarm_set_id) REFERENCES AlarmSet(id) ON DELETE SET NULL
+          label TEXT NOT NULL DEFAULT '',
+          hour INTEGER NOT NULL,
+          minute INTEGER NOT NULL,
+          repeat_days TEXT NOT NULL DEFAULT '[]',
+          skip_holidays INTEGER NOT NULL DEFAULT 0,
+          sound TEXT NOT NULL DEFAULT '',
+          vibrate INTEGER NOT NULL DEFAULT 1,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          next_trigger_at INTEGER,
+          policy_mode TEXT NOT NULL DEFAULT 'normal',
+          policy_payload TEXT,
+          FOREIGN KEY (alarm_set_id) REFERENCES AlarmSet(id) ON DELETE SET NULL,
+          FOREIGN KEY (dday_id) REFERENCES Dday(id) ON DELETE SET NULL
         );
       `);
     }
     else {
       console.log('✅ 테이블 이미 존재함');
+      await ensureColumn(db, 'Alarm', 'next_trigger_at', 'INTEGER');
     }
-    
+
   }
 }
+
+const ensureColumn = async (
+  db: SQLiteDatabase,
+  table: string,
+  column: string,
+  definition: string,
+) => {
+  const [info] = await db.executeSql(`PRAGMA table_info(${table});`);
+  for (let index = 0; index < info.rows.length; index += 1) {
+    const row = info.rows.item(index);
+    if (row.name === column) {
+      return;
+    }
+  }
+
+  await db.executeSql(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+  console.log(`🔧 ${table}.${column} 컬럼을 추가했습니다.`);
+};

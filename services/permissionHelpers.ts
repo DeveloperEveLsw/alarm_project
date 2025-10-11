@@ -1,11 +1,20 @@
-import { PermissionsAndroid, Platform } from "react-native";
+import { PermissionsAndroid as NativePermissionsAndroid, Platform } from "react-native";
 
 import { useAlarmPermissionsStore } from "../stores/alarmPermissionsStore";
 
-const foregroundLocationPermissions = [
-  PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-  PermissionsAndroid.PERMISSIONS.FOREGROUND_SERVICE_LOCATION,
-].filter((permission): permission is PermissionsAndroid.Permission => Boolean(permission));
+const permissionsAndroid = NativePermissionsAndroid as unknown as {
+  check(permission: string): Promise<boolean>;
+  requestMultiple(permissions: string[]): Promise<Record<string, string>>;
+};
+
+const rawPermissions = NativePermissionsAndroid.PERMISSIONS as Record<string, string | undefined>;
+
+const foregroundServicePermission =
+  rawPermissions.FOREGROUND_SERVICE_LOCATION ?? "android.permission.FOREGROUND_SERVICE_LOCATION";
+
+const foregroundLocationPermissions = [rawPermissions.ACCESS_FINE_LOCATION, foregroundServicePermission].filter(
+  (permission): permission is string => Boolean(permission),
+);
 
 export const ensureLocationForegroundServicePermission = async (): Promise<boolean> => {
   if (Platform.OS !== "android") {
@@ -20,17 +29,15 @@ export const ensureLocationForegroundServicePermission = async (): Promise<boole
     return true;
   }
 
-  const checks = await Promise.all(
-    foregroundLocationPermissions.map(permission => PermissionsAndroid.check(permission)),
-  );
+  const checks = await Promise.all(foregroundLocationPermissions.map(permission => permissionsAndroid.check(permission)));
 
   if (checks.every(Boolean)) {
     return true;
   }
 
-  const results = await PermissionsAndroid.requestMultiple(foregroundLocationPermissions);
+  const results = await permissionsAndroid.requestMultiple(foregroundLocationPermissions);
   const granted = foregroundLocationPermissions.every(
-    permission => results[permission] === PermissionsAndroid.RESULTS.GRANTED,
+    permission => results[permission] === NativePermissionsAndroid.RESULTS.GRANTED,
   );
 
   if (granted) {
