@@ -11,6 +11,7 @@ class AlarmEnginePackage : ReactPackage {
             AlarmEngineModule(reactContext),
             PermissionModule(reactContext),
             RingtonePickerModule(reactContext),
+            LocalDatabaseModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()

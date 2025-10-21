@@ -1,98 +1,75 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StatusBar, StyleSheet, useColorScheme, View, Text, Button, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
-import { DBManager } from '../services/db/db';
-import { ResultSet, SQLiteDatabase } from 'react-native-sqlite-storage';
+import { StyleSheet, View, Text, Button, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
+import { databaseDebug, type DatabaseSnapshot } from '../services/db/localDatabase';
 
 const SubScreenTwo = () => {
-  const [db, setDb] = useState<SQLiteDatabase | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  const [tableData, setTableData] = useState<Record<string, any[]>>({});
+  const [tableData, setTableData] = useState<DatabaseSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const TABLE_NAMES = ['Todo', 'Dday', 'AlarmSet', 'Alarm'];
+  const TABLE_NAMES: Array<keyof DatabaseSnapshot> = ['Todo', 'Dday', 'AlarmSet', 'Alarm'];
 
   const addLog = (log: string) => {
     console.log(log);
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${log}`, ...prev]);
   };
 
-  useEffect(() => {
-    const connectToDb = async () => {
-      try {
-        const dbInstance = await DBManager.getDB();
-        setDb(dbInstance);
-        addLog('✅ DB Connected successfully.');
-        await handleFetchAllData(dbInstance);
-      } catch (e) {
-        addLog(`❌ DB Connection failed: ${e}`);
-      }
-    };
-    connectToDb();
-  }, []);
-
   const handleInitialize = useCallback(async () => {
-    if (!db) {
-      addLog('⚠️ DB not connected.');
-      return;
-    }
     try {
-      addLog('🚀 Initializing tables...');
-      await DBManager.initializeTables();
-      addLog('✅ Tables initialized successfully.');
-      await handleFetchAllData(db);
+      addLog('🚀 Opening Room database...');
+      await databaseDebug.ensureInitialized();
+      addLog('✅ Database ready.');
+      await handleFetchAllData();
     } catch (e) {
       addLog(`❌ Table initialization failed: ${e}`);
     }
-  }, [db]);
+  }, [handleFetchAllData]);
 
   const handleDropAllTables = useCallback(async () => {
-    if (!db) {
-      addLog('⚠️ DB not connected.');
-      return;
-    }
     setLoading(true);
-    addLog('🗑️ Dropping all tables...');
+    addLog('🧹 Clearing all tables (Room clearAllTables)...');
     try {
-      for (const tableName of TABLE_NAMES) {
-        await db.executeSql(`DROP TABLE IF EXISTS ${tableName};`);
-        addLog(`- Table '${tableName}' dropped.`);
-      }
-      addLog('✅ All tables dropped successfully.');
-      setTableData({}); // Clear data from view
+      await databaseDebug.clearAllTables();
+      addLog('✅ All tables cleared.');
+      setTableData({
+        Todo: [],
+        Dday: [],
+        AlarmSet: [],
+        Alarm: [],
+      });
     } catch (e) {
       addLog(`❌ Failed to drop tables: ${e}`);
     } finally {
       setLoading(false);
     }
-  }, [db]);
+  }, []);
 
-  const handleFetchAllData = useCallback(async (dbInstance: SQLiteDatabase) => {
-    if (!dbInstance) {
-      addLog('⚠️ DB not connected.');
-      return;
-    }
+  const handleFetchAllData = useCallback(async () => {
     setLoading(true);
-    addLog('🔄 Fetching data from all tables...');
-    const newData: Record<string, any[]> = {};
+    addLog('🔄 Fetching data from Room database...');
     try {
-      for (const tableName of TABLE_NAMES) {
-        const [result] = await dbInstance.executeSql(`SELECT * FROM ${tableName};`);
-        const items: any[] = [];
-        for (let i = 0; i < result.rows.length; i++) {
-          items.push(result.rows.item(i));
-        }
-        newData[tableName] = items;
-      }
-      setTableData(newData);
+      const snapshot = await databaseDebug.fetchSnapshot();
+      setTableData(snapshot);
       addLog('✅ Data fetched successfully.');
     } catch (e) {
       addLog(`❌ Failed to fetch data: ${e}`);
-      // If a table doesn't exist, it will throw an error. Show empty data for it.
-      setTableData(prev => ({ ...prev, ...newData }));
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const connectToDb = async () => {
+      try {
+        await databaseDebug.ensureInitialized();
+        addLog('✅ Room database initialized.');
+        await handleFetchAllData();
+      } catch (e) {
+        addLog(`❌ DB initialization failed: ${e}`);
+      }
+    };
+    connectToDb();
+  }, [handleFetchAllData]);
 
 
   return (
@@ -101,16 +78,16 @@ const SubScreenTwo = () => {
       
       <View style={styles.buttonContainer}>
         <Button title="Initialize DB" onPress={handleInitialize} />
-        <Button title="Fetch & Refresh Data" onPress={() => handleFetchAllData(db!)} disabled={!db || loading} />
-        <Button title="Drop All Tables" onPress={handleDropAllTables} color="red" disabled={!db || loading} />
+        <Button title="Fetch & Refresh Data" onPress={handleFetchAllData} disabled={loading} />
+        <Button title="Clear All Tables" onPress={handleDropAllTables} color="red" disabled={loading} />
       </View>
 
       {loading && <ActivityIndicator size="large" color="#0000ff" />} 
 
       <ScrollView style={styles.dataContainer} contentContainerStyle={{ paddingBottom: 20 }}>
         {TABLE_NAMES.map(tableName => {
-          const data = tableData[tableName];
-          const headers = data && data.length > 0 ? Object.keys(data[0]) : [];
+          const data = tableData?.[tableName] ?? [];
+          const headers = data.length > 0 ? Object.keys(data[0]) : [];
 
           return (
             <View key={tableName} style={styles.tableContainer}>

@@ -5,11 +5,11 @@ export type ScheduleTodo = {
   dueTime: string | null;
   isRepeating: boolean;
   repeatType: 'weekly' | 'monthly' | null;
-  repeatWeekdays: number[] | null;
+  repeatWeekdays: number[];
   repeatDayOfMonth: number | null;
   ddayId: number | null;
-  alarmId: number | null;
-  alarmSetId: number | null;
+  alarmId: string | null;
+  alarmSetId: string | null;
 };
 
 export type ScheduleTodoFormData = {
