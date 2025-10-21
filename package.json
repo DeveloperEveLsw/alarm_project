@@ -23,8 +23,12 @@
     "react-native": "0.81.1",
     "react-native-calendars": "^1.1313.0",
     "react-native-cli": "^2.0.1",
+<<<<<<< Updated upstream
     "react-native-maps": "^1.26.9",
     "react-native-permissions": "^5.4.2",
+=======
+    "react-native-maps": "^1.26.17",
+>>>>>>> Stashed changes
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "^4.15.4",
     "react-native-sqlite-storage": "^6.0.1",

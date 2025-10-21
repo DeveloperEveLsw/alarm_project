@@ -18,6 +18,9 @@ buildscript {
     }
 }
 
+<<<<<<< Updated upstream
 
 
+=======
+>>>>>>> Stashed changes
 apply plugin: "com.facebook.react.rootproject"

@@ -78,6 +78,16 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.alarm_project"
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     defaultConfig {
         applicationId "com.alarm_project"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -108,6 +118,20 @@ android {
 }
 
 dependencies {
+<<<<<<< Updated upstream
+=======
+    // Room DB 설정
+    def roomVersion = "2.7.0-alpha03"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    kapt("androidx.room:room-compiler:$roomVersion")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+>>>>>>> Stashed changes
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
@@ -118,6 +142,20 @@ dependencies {
     }
 }
 
+<<<<<<< Updated upstream
+=======
+// KAPT 설정 임시 제거 (Room 없이 사용)
+// kapt {
+//     arguments {
+//         arg("room.schemaLocation", "$projectDir/schemas")
+//         arg("room.incremental", "true")
+//     }
+// }
+
+
+
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
+>>>>>>> Stashed changes
 
 
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
