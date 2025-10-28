@@ -119,14 +119,9 @@ android {
 
 dependencies {
 <<<<<<< Updated upstream
-<<<<<<< Updated upstream
 =======
     // Room DB 설정
     def roomVersion = "2.7.0-alpha03"
-=======
-    def roomVersion = "2.6.1"
-
->>>>>>> Stashed changes
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")

@@ -49,6 +49,7 @@ abstract class AlarmRoomDatabase : RoomDatabase() {
             )
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
+                .enableMultiInstanceInvalidation()
                 .build()
         }
     }
