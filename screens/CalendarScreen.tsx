@@ -15,7 +15,7 @@ import type { ScheduleTodo } from '../types/todo.types';
 type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
 const CalendarScreen: React.FC = () => {
-  const [currentDateLabel, setCurrentDateLabel] = useState('2025\uB144 9\uC6D4');
+  const [currentDateLabel, setCurrentDateLabel] = useState('2025년 9월');
   const { data: todos = [] } = useQuery<ScheduleTodo[]>({
     queryKey: ['todos', 'all'],
     queryFn: todoService.getAllTodos,
@@ -50,7 +50,7 @@ const CalendarScreen: React.FC = () => {
         calendarWidth={SCREEN_WIDTH}
         onVisibleMonthsChange={(date: DateData[]) => {
           if (date[0]) {
-            setCurrentDateLabel(`${date[0].year}\uB144 ${date[0].month}\uC6D4`);
+            setCurrentDateLabel(`${date[0].year}년 ${date[0].month}월`);
           }
         }}
         hideExtraDays={false}
@@ -70,10 +70,10 @@ const CalendarScreen: React.FC = () => {
               color: string;
             }
           > = {
-            '2025-03-01': { label: '\uC0BC\uC77C\uC808', color: '#d32f2f' },
-            '2025-03-03': { label: '\uC26C\uB294\uB0A0', color: '#1976d2' },
-            '2025-03-14': { label: '\uD558\uC774\uD2B8\uB370\uC774', color: '#e91e63' },
-            '2025-03-29': { label: '\uAC00\uC0C1\uC758\uB0A0', color: '#388e3c' },
+            '2025-03-01': { label: '삼일절', color: '#d32f2f' },
+            '2025-03-03': { label: '쉬는날', color: '#1976d2' },
+            '2025-03-14': { label: '화이트데이', color: '#e91e63' },
+            '2025-03-29': { label: '가상의날', color: '#388e3c' },
           };
 
           const holiday = dateStr ? holidayMap[dateStr] : undefined;
