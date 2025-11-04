@@ -30,6 +30,8 @@ export interface AlarmDaoContract {
   updateState(id: string, enabled: boolean, nextTriggerAt: number | null): Promise<void>;
   // @Query("UPDATE Alarm SET enabled = :enabled WHERE id = :id")
   updateEnabled(id: string, enabled: boolean): Promise<void>;
+  // @Query("UPDATE Alarm SET alarm_set_id = :setId WHERE id IN (:ids)")
+  updateSetForIds(ids: string[], setId: string | null): Promise<void>;
 }
 
 // Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/AlarmSetDao.kt
@@ -48,22 +50,70 @@ export interface AlarmSetDaoContract {
   getAll(): Promise<RoomEntities.AlarmSetEntity[]>;
 }
 
+// Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/AlarmSetTemplateDao.kt
+export interface AlarmSetTemplateDaoContract {
+  // @Query("SELECT * FROM AlarmSetTemplate ORDER BY created_at DESC, label ASC")
+  observeAll(): RoomFlow<RoomEntities.AlarmSetTemplateEntity[]>;
+  // @Query("SELECT * FROM AlarmSetTemplate ORDER BY created_at DESC, label ASC")
+  getAll(): Promise<RoomEntities.AlarmSetTemplateEntity[]>;
+  // @Query("SELECT * FROM AlarmSetTemplate WHERE id = :id LIMIT 1")
+  findById(id: string): Promise<RoomEntities.AlarmSetTemplateEntity | null>;
+  // @Insert(onConflict = OnConflictStrategy.REPLACE)
+  upsert(entity: RoomEntities.AlarmSetTemplateEntity): Promise<void>;
+  // @Update
+  update(entity: RoomEntities.AlarmSetTemplateEntity): Promise<void>;
+  // @Delete
+  delete(entity: RoomEntities.AlarmSetTemplateEntity): Promise<void>;
+}
+
+// Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/AlarmTemplateDao.kt
+export interface AlarmTemplateDaoContract {
+  observeByTemplateId(templateId: string): RoomFlow<RoomEntities.AlarmTemplateEntity[]>;
+  getByTemplateId(templateId: string): Promise<RoomEntities.AlarmTemplateEntity[]>;
+  // @Insert(onConflict = OnConflictStrategy.REPLACE)
+  upsert(entity: RoomEntities.AlarmTemplateEntity): Promise<void>;
+  // @Insert(onConflict = OnConflictStrategy.REPLACE)
+  upsertAll(entities: RoomEntities.AlarmTemplateEntity[]): Promise<void>;
+  // @Update
+  update(entity: RoomEntities.AlarmTemplateEntity): Promise<void>;
+  // @Delete
+  delete(entity: RoomEntities.AlarmTemplateEntity): Promise<void>;
+  // @Query("DELETE FROM AlarmTemplate WHERE template_id = :templateId")
+  deleteByTemplateId(templateId: string): Promise<void>;
+}
+
 // Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/DDayDao.kt
 export interface DDayDaoContract {
   // @Query("SELECT * FROM Dday ORDER BY target_date ASC")
-  observeAll(): RoomFlow<RoomEntities.DDayEntity[]>;
+  observeAll(): RoomFlow<RoomEntities.DdayEntity[]>;
   // @Query("SELECT * FROM Dday WHERE id = :id LIMIT 1")
-  findById(id: number): Promise<RoomEntities.DDayEntity | null>;
+  findById(id: number): Promise<RoomEntities.DdayEntity | null>;
   // @Insert(onConflict = OnConflictStrategy.REPLACE)
-  upsert(entity: RoomEntities.DDayEntity): Promise<number>;
+  upsert(entity: RoomEntities.DdayEntity): Promise<number>;
   // @Update
-  update(entity: RoomEntities.DDayEntity): Promise<void>;
+  update(entity: RoomEntities.DdayEntity): Promise<void>;
   // @Delete
-  delete(entity: RoomEntities.DDayEntity): Promise<void>;
+  delete(entity: RoomEntities.DdayEntity): Promise<void>;
   // @Query("DELETE FROM Dday WHERE id = :id")
   deleteById(id: number): Promise<void>;
   // @Query("SELECT * FROM Dday ORDER BY id ASC")
-  getAll(): Promise<RoomEntities.DDayEntity[]>;
+  getAll(): Promise<RoomEntities.DdayEntity[]>;
+}
+
+// Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/TodoAlarmRelationDao.kt
+export interface TodoAlarmRelationDaoContract {
+  observeByTodoId(todoId: number): RoomFlow<RoomEntities.TodoAlarmRelationEntity[]>;
+  getByTodoId(todoId: number): Promise<RoomEntities.TodoAlarmRelationEntity[]>;
+  // @Insert(onConflict = OnConflictStrategy.REPLACE)
+  upsert(entity: RoomEntities.TodoAlarmRelationEntity): Promise<number>;
+  // @Insert(onConflict = OnConflictStrategy.REPLACE)
+  upsertAll(entities: RoomEntities.TodoAlarmRelationEntity[]): Promise<void>;
+  // @Query("SELECT * FROM TodoAlarmRelation ORDER BY todo_id ASC, order_index ASC, id ASC")
+  getAll(): Promise<RoomEntities.TodoAlarmRelationEntity[]>;
+  // @Query("DELETE FROM TodoAlarmRelation WHERE todo_id = :todoId")
+  deleteByTodoId(todoId: number): Promise<void>;
+  // @Query("DELETE FROM TodoAlarmRelation WHERE alarm_id = :alarmId")
+  deleteByAlarmId(alarmId: string): Promise<void>;
 }
 
 // Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/TodoDao.kt

@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 
-import { Dimensions, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { CalendarList, DateData } from 'react-native-calendars';
 import dayjs from 'dayjs';
@@ -92,52 +92,49 @@ const CalendarScreen: React.FC = () => {
               onPress={() => date && handleDayPress(date.dateString)}
             >
               <View
-                style={{
-                  width: SCREEN_WIDTH / 7,
-                  height: SCREEN_HEIGHT / 6 - 10,
-                  justifyContent: 'flex-start',
-                  alignItems: 'center',
-                  borderColor: '#bebebe',
-                  borderStyle: 'solid',
-                  borderTopWidth: 1,
-                  paddingHorizontal: 2,
-                }}
+                style={[
+                  styles.dayCell,
+                  {
+                    width: SCREEN_WIDTH / 7,
+                    height: SCREEN_HEIGHT / 6 - 10,
+                  },
+                ]}
               >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    color: textColor,
-                    opacity: state === 'disabled' ? 0.3 : 1,
-                    fontWeight: holiday ? 'bold' : 'normal',
-                    paddingTop: 3,
-                  }}
-                >
-                  {date?.day}
-                </Text>
-                {holiday && (
+                <View style={styles.dayHeader}>
                   <Text
-                    style={{
-                      fontSize: 10,
-                      color: holiday.color,
-                      marginTop: 2,
-                    }}
+                    style={[
+                      styles.dayNumber,
+                      {
+                        color: textColor,
+                        opacity: state === 'disabled' ? 0.3 : 1,
+                      },
+                      holiday ? styles.dayNumberHoliday : null,
+                    ]}
                   >
-                    {holiday.label}
+                    {date?.day}
                   </Text>
-                )}
-                {todosForDate.map(todo => (
-                  <Text
-                    key={`${todo.id}-${dateStr}`}
-                    numberOfLines={1}
-                    style={{
-                      marginTop: 2,
-                      fontSize: 10,
-                      color: '#424242',
-                    }}
-                  >
-                    - {todo.title}
-                  </Text>
-                ))}
+                  {holiday && (
+                    <Text style={[styles.holidayLabel, { color: holiday.color }]}>
+                      {holiday.label}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.todoList}>
+                  {todosForDate.map(todo => (
+                    <View
+                      key={`${todo.id}-${dateStr}`}
+                      style={[
+                        styles.todoCard,
+                        todo.isRepeating && styles.todoCardRepeat,
+                        todo.ddayId != null && styles.todoCardDDay,
+                      ]}
+                    >
+                      <Text numberOfLines={1} style={styles.todoCardText}>
+                        {todo.title}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             </TouchableOpacity>
           );
@@ -146,5 +143,60 @@ const CalendarScreen: React.FC = () => {
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  dayCell: {
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+    borderColor: '#bebebe',
+    borderStyle: 'solid',
+    borderTopWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  dayHeader: {
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  dayNumber: {
+    fontSize: 16,
+    fontWeight: '600',
+    paddingTop: 2,
+  },
+  dayNumberHoliday: {
+    fontWeight: '700',
+  },
+  holidayLabel: {
+    fontSize: 10,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  todoList: {
+    flexGrow: 1,
+    width: '100%',
+  },
+  todoCard: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    marginTop: 4,
+  },
+  todoCardRepeat: {
+    backgroundColor: '#e6f0ff',
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
+  todoCardDDay: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+  },
+  todoCardText: {
+    fontSize: 10,
+    color: '#1f2937',
+    fontWeight: '600',
+  },
+});
 
 export default CalendarScreen;

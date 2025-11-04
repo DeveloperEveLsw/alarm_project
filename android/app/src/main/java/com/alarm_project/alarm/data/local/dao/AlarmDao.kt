@@ -36,4 +36,7 @@ interface AlarmDao {
 
     @Query("UPDATE Alarm SET enabled = :enabled WHERE id = :id")
     suspend fun updateEnabled(id: String, enabled: Boolean)
+
+    @Query("UPDATE Alarm SET alarm_set_id = :setId WHERE id IN (:ids)")
+    suspend fun updateSetForIds(ids: List<String>, setId: String?)
 }

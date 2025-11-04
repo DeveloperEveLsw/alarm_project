@@ -7,12 +7,34 @@ const SubScreenTwo = () => {
   const [tableData, setTableData] = useState<DatabaseSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const TABLE_NAMES: Array<keyof DatabaseSnapshot> = ['Todo', 'Dday', 'AlarmSet', 'Alarm'];
+  const TABLE_NAMES: Array<keyof DatabaseSnapshot> = [
+    'Todo',
+    'Dday',
+    'AlarmSet',
+    'Alarm',
+    'TodoAlarmRelation',
+    'AlarmSetTemplate',
+    'AlarmTemplate',
+  ];
 
   const addLog = (log: string) => {
     console.log(log);
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${log}`, ...prev]);
   };
+
+  const handleFetchAllData = useCallback(async () => {
+    setLoading(true);
+    addLog('🔄 Fetching data from Room database...');
+    try {
+      const snapshot = await databaseDebug.fetchSnapshot();
+      setTableData(snapshot);
+      addLog('✅ Data fetched successfully.');
+    } catch (e) {
+      addLog(`❌ Failed to fetch data: ${e}`);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const handleInitialize = useCallback(async () => {
     try {
@@ -36,23 +58,12 @@ const SubScreenTwo = () => {
         Dday: [],
         AlarmSet: [],
         Alarm: [],
+        TodoAlarmRelation: [],
+        AlarmSetTemplate: [],
+        AlarmTemplate: [],
       });
     } catch (e) {
       addLog(`❌ Failed to drop tables: ${e}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const handleFetchAllData = useCallback(async () => {
-    setLoading(true);
-    addLog('🔄 Fetching data from Room database...');
-    try {
-      const snapshot = await databaseDebug.fetchSnapshot();
-      setTableData(snapshot);
-      addLog('✅ Data fetched successfully.');
-    } catch (e) {
-      addLog(`❌ Failed to fetch data: ${e}`);
     } finally {
       setLoading(false);
     }
@@ -104,11 +115,15 @@ const SubScreenTwo = () => {
                     {/* Data Rows */}
                     {data.map((item, index) => (
                       <View key={index} style={styles.tableRow}>
-                        {headers.map(header => (
-                          <Text key={header} style={styles.tableCell}>
-                            {String(item[header])}
-                          </Text>
-                        ))}
+                        {headers.map(header => {
+                          const record = item as unknown as Record<string, unknown>;
+                          const value = record[header];
+                          return (
+                            <Text key={header} style={styles.tableCell}>
+                              {String(value)}
+                            </Text>
+                          );
+                        })}
                       </View>
                     ))}
                   </View>

@@ -57,8 +57,8 @@ const IconToggleButton = ({
       onPress={handlePress}
       style={[boxStyle, { flexDirection: 'row', alignItems: 'center' }]}
     >
-      {title ? <Text style={textStyle}>{title}</Text> : null}
       <IconComponent name={iconToRender} size={iconSize} color={iconColor} />
+      {title ? <Text style={textStyle}>{title}</Text> : null}
     </TouchableOpacity>
   );
 };

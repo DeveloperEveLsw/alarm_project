@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ScheduleTodoCard from '../Components/ScheduleTodoCard';
 import type { ScheduleTodo, ScheduleTodoFormData } from '../types/todo.types';
 import { todoService } from '../services/todoService';
+import { syncTodoAlarms } from '../services/scheduleAlarmService';
 import { RootStackParamList } from '../types/navigation.types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ScheduleEditor'>;
@@ -24,6 +25,7 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
   const [dateValue, setDateValue] = useState(route.params.date);
   const [expandedCardId, setExpandedCardId] = useState<ExpandedCardId>(null);
   const [activeMutationTarget, setActiveMutationTarget] = useState<ActiveMutationTarget>(null);
+  const [deletingTodoId, setDeletingTodoId] = useState<number | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -52,13 +54,20 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
     [closeExpandedCard, expandedCardId],
   );
 
-  const updateTodoMutation = useMutation<void, Error, UpdateTodoVariables>({
-    mutationFn: ({ todo, formData }: UpdateTodoVariables) =>
-      todoService.updateTodo({
+  const updateTodoMutation = useMutation<ScheduleTodo, Error, UpdateTodoVariables>({
+    mutationFn: async ({ todo, formData }: UpdateTodoVariables) => {
+      const updated = await todoService.updateTodo({
         todo,
         formData,
         targetDate: dateValue,
-      }),
+      });
+      try {
+        return await syncTodoAlarms({ todo: updated, formData });
+      } catch (error) {
+        console.error('Failed to sync alarms for schedule', error);
+        return updated;
+      }
+    },
     onMutate: ({ todo }: UpdateTodoVariables) => {
       setActiveMutationTarget(todo.id);
     },
@@ -74,12 +83,19 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
     },
   });
 
-  const createTodoMutation = useMutation<void, Error, ScheduleTodoFormData>({
-    mutationFn: (formData: ScheduleTodoFormData) =>
-      todoService.createTodo({
+  const createTodoMutation = useMutation<ScheduleTodo, Error, ScheduleTodoFormData>({
+    mutationFn: async (formData: ScheduleTodoFormData) => {
+      const created = await todoService.createTodo({
         formData,
         targetDate: dateValue,
-      }),
+      });
+      try {
+        return await syncTodoAlarms({ todo: created, formData });
+      } catch (error) {
+        console.error('Failed to sync alarms for new schedule', error);
+        return created;
+      }
+    },
     onMutate: () => {
       setActiveMutationTarget('new');
     },
@@ -91,6 +107,23 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
     },
     onSettled: () => {
       setActiveMutationTarget(null);
+    },
+  });
+
+  const deleteTodoMutation = useMutation<void, Error, ScheduleTodo>({
+    mutationFn: (todo: ScheduleTodo) => todoService.deleteTodo(todo.id),
+    onMutate: ({ id }: ScheduleTodo) => {
+      setDeletingTodoId(id);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['todos'] });
+      closeExpandedCard();
+    },
+    onError: (error: unknown) => {
+      console.error('Failed to delete todo item', error);
+    },
+    onSettled: () => {
+      setDeletingTodoId(null);
     },
   });
 
@@ -106,6 +139,11 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
   const handleCreateTodo = useCallback(
     (formData: ScheduleTodoFormData) => createTodoMutation.mutateAsync(formData),
     [createTodoMutation],
+  );
+
+  const handleDeleteTodo = useCallback(
+    (todo: ScheduleTodo) => deleteTodoMutation.mutateAsync(todo),
+    [deleteTodoMutation],
   );
 
   const handleNewCardCancel = useCallback(() => {
@@ -143,9 +181,11 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
                     isExpanded={isExpanded}
                     onPressHeader={() => handleTodoCardPress(todo)}
                     isSaving={isSavingExisting}
+                    isDeleting={deleteTodoMutation.isPending && deletingTodoId === todo.id}
                     initialData={todo}
                     onCancel={closeExpandedCard}
                     onSave={formData => handleSaveExisting(todo, formData)}
+                    onDelete={handleDeleteTodo}
                   />
                 );
               })}

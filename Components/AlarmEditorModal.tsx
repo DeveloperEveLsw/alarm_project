@@ -40,6 +40,7 @@ const buildInitialState = (draft: AlarmDraft) => ({
   vibrate: draft.vibrate,
   hour: draft.hour,
   minute: draft.minute,
+  alarmSetId: draft.alarmSetId ?? null,
 });
 
 const toDisplayHour = (hour: number): number => {
@@ -156,6 +157,7 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
       vibrate: state.vibrate,
       policyMode: draft.policyMode ?? "normal",
       policyPayload: draft.policyPayload ?? null,
+      alarmSetId: state.alarmSetId ?? null,
     };
     onSave(payload);
   }, [onSave, state]);

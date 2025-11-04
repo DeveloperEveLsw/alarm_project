@@ -49,3 +49,35 @@ export interface DdayEntity {
   todo_id: number | null;
   target_date: string;
 }
+
+// Source: android/app/schemas/com.alarm_project.alarm.data.local.AlarmRoomDatabase/3.json
+export interface TodoAlarmRelationEntity {
+  id: number | null;
+  todo_id: number;
+  alarm_id: string;
+  offset_minutes: number;
+  order_index: number;
+}
+
+// Source: android/app/schemas/com.alarm_project.alarm.data.local.AlarmRoomDatabase/4.json
+export interface AlarmSetTemplateEntity {
+  id: string;
+  label: string;
+  default_sound: string;
+  default_mode: string;
+  created_at: string | null;
+}
+
+// Source: android/app/schemas/com.alarm_project.alarm.data.local.AlarmRoomDatabase/4.json
+export interface AlarmTemplateEntity {
+  id: number | null;
+  template_id: string;
+  label: string;
+  offset_minutes: number;
+  repeat_days: number;
+  skip_holidays: boolean;
+  sound: string;
+  vibrate: boolean;
+  policy_mode: string;
+  policy_payload: string | null;
+}

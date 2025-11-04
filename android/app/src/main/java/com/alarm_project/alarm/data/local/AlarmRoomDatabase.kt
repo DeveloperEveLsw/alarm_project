@@ -6,12 +6,18 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.alarm_project.alarm.data.local.dao.AlarmDao
 import com.alarm_project.alarm.data.local.dao.AlarmSetDao
+import com.alarm_project.alarm.data.local.dao.AlarmSetTemplateDao
+import com.alarm_project.alarm.data.local.dao.AlarmTemplateDao
 import com.alarm_project.alarm.data.local.dao.DDayDao
+import com.alarm_project.alarm.data.local.dao.TodoAlarmRelationDao
 import com.alarm_project.alarm.data.local.dao.TodoDao
 import com.alarm_project.alarm.data.local.entity.AlarmEntity
 import com.alarm_project.alarm.data.local.entity.AlarmSetEntity
 import com.alarm_project.alarm.data.local.entity.DDayEntity
+import com.alarm_project.alarm.data.local.entity.TodoAlarmRelationEntity
 import com.alarm_project.alarm.data.local.entity.TodoEntity
+import com.alarm_project.alarm.data.local.entity.AlarmSetTemplateEntity
+import com.alarm_project.alarm.data.local.entity.AlarmTemplateEntity
 
 @Database(
     entities = [
@@ -19,8 +25,11 @@ import com.alarm_project.alarm.data.local.entity.TodoEntity
         AlarmEntity::class,
         AlarmSetEntity::class,
         DDayEntity::class,
+        TodoAlarmRelationEntity::class,
+        AlarmSetTemplateEntity::class,
+        AlarmTemplateEntity::class,
     ],
-    version = 2,
+    version = 4,
     exportSchema = true,
 )
 abstract class AlarmRoomDatabase : RoomDatabase() {
@@ -28,6 +37,9 @@ abstract class AlarmRoomDatabase : RoomDatabase() {
     abstract fun alarmDao(): AlarmDao
     abstract fun alarmSetDao(): AlarmSetDao
     abstract fun dDayDao(): DDayDao
+    abstract fun todoAlarmRelationDao(): TodoAlarmRelationDao
+    abstract fun alarmSetTemplateDao(): AlarmSetTemplateDao
+    abstract fun alarmTemplateDao(): AlarmTemplateDao
 
     companion object {
         private const val DATABASE_NAME = "schedule.db"

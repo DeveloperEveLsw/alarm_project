@@ -12,6 +12,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import AlarmEditorModal from "../Components/AlarmEditorModal";
 import AlarmListItem from "../Components/AlarmListItem";
+import AlarmSetCreateModal from "../Components/AlarmSetCreateModal";
+import AlarmTemplatePickerModal from "../Components/AlarmTemplatePickerModal";
 import { fetchAlarms } from "../services/alarm/alarmStorage";
 import {
   createAlarmFromDraft,
@@ -19,6 +21,13 @@ import {
   toggleAlarmEnabled,
   updateAlarmFromDraft,
 } from "../services/alarm/alarmWorkflow";
+import {
+  applyAlarmTemplate,
+  createAlarmTemplateFromAlarms,
+  getAlarmSetTemplates,
+  getAlarmTemplateEntries,
+  deleteAlarmTemplate,
+} from "../services/alarm/alarmSetService";
 import { useAlarmPermissionsStore } from "../stores/alarmPermissionsStore";
 import type { AlarmPermissionState } from "../stores/alarmPermissionsStore";
 import type { AlarmDraft, AlarmItem } from "../types/alarm.types";
@@ -41,6 +50,7 @@ const createDefaultDraft = (): AlarmDraft => {
     vibrate: true,
     policyMode: "normal",
     policyPayload: null,
+    alarmSetId: null,
   };
 };
 
@@ -55,6 +65,7 @@ const toDraft = (alarm: AlarmItem): AlarmDraft => ({
   vibrate: alarm.vibrate,
   policyMode: alarm.policyMode ?? "normal",
   policyPayload: alarm.policyPayload ?? null,
+  alarmSetId: alarm.alarmSetId ?? null,
 });
 
 type EditorState =
@@ -72,11 +83,22 @@ const HomeScreen: React.FC = () => {
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isSetModalVisible, setIsSetModalVisible] = useState(false);
+  const [setModalDefaultLabel, setSetModalDefaultLabel] = useState("");
+  const [isSavingSet, setIsSavingSet] = useState(false);
+  const [isFabExpanded, setIsFabExpanded] = useState(false);
+  const [isTemplateModalVisible, setIsTemplateModalVisible] = useState(false);
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
   const queryClient = useQueryClient();
 
   const alarmsQuery = useQuery<AlarmItem[]>({
     queryKey: ["alarms"],
     queryFn: fetchAlarms,
+  });
+
+  const templatesQuery = useQuery({
+    queryKey: ["alarm-templates"],
+    queryFn: getAlarmSetTemplates,
   });
 
   const alarms = alarmsQuery.data ?? [];
@@ -101,6 +123,12 @@ const HomeScreen: React.FC = () => {
       console.warn("[Permissions] hydrate failed", error);
     });
   }, [hydratePermissions]);
+
+  useEffect(() => {
+    if (isSelectionMode) {
+      setIsFabExpanded(false);
+    }
+  }, [isSelectionMode]);
 
   const ensureCorePermissions = useCallback(async () => {
     if (!hasPostNotifications) {
@@ -146,7 +174,7 @@ const HomeScreen: React.FC = () => {
   );
 
   const createAlarmMutation = useMutation({
-    mutationFn: createAlarmFromDraft,
+    mutationFn: (draft: AlarmDraft) => createAlarmFromDraft(draft),
     onSuccess: () => {
       void invalidateAlarms();
     },
@@ -250,6 +278,120 @@ const HomeScreen: React.FC = () => {
     );
   }, [alarms, deleteAlarmsMutation, exitSelectionMode, selectedIds, selectionCount]);
 
+  const handleOpenSetModal = useCallback(() => {
+    if (selectionCount === 0) {
+      Alert.alert("알람 세트", "먼저 알람을 선택해 주세요.");
+      return;
+    }
+    const defaultLabel = `알람 세트 ${dayjs().format("HH:mm")}`;
+    setSetModalDefaultLabel(defaultLabel);
+    setIsFabExpanded(false);
+    setIsSetModalVisible(true);
+  }, [selectionCount]);
+
+  const handleOpenTemplateModal = useCallback(() => {
+    setIsFabExpanded(false);
+    setIsTemplateModalVisible(true);
+  }, []);
+
+  const handleConfirmCreateSet = useCallback(
+    async (label: string) => {
+      const trimmed = label.trim();
+      if (!trimmed) {
+        Alert.alert("알람 세트", "세트 이름을 입력해 주세요.");
+        return;
+      }
+      const selectedSet = new Set(selectedIds);
+      const targets = alarms.filter(alarm => selectedSet.has(alarm.id));
+      if (targets.length === 0) {
+        Alert.alert("알람 세트", "선택된 알람이 없습니다.");
+        setIsSetModalVisible(false);
+        return;
+      }
+
+      setIsSavingSet(true);
+      try {
+        await createAlarmTemplateFromAlarms(trimmed, targets);
+        setIsSetModalVisible(false);
+        exitSelectionMode();
+        await queryClient.invalidateQueries({ queryKey: ["alarm-templates"] });
+        await invalidateAlarms();
+        Alert.alert("알람 세트", "세트를 저장했습니다.");
+      } catch (error) {
+        console.warn("[Alarm] Failed to create alarm set", error);
+        Alert.alert("세트 저장 실패", "알람 세트를 저장하는 중 오류가 발생했습니다.");
+      } finally {
+        setIsSavingSet(false);
+      }
+    },
+    [alarms, exitSelectionMode, invalidateAlarms, queryClient, selectedIds],
+  );
+
+  const handleCloseSetModal = useCallback(() => {
+    if (isSavingSet) {
+      return;
+    }
+    setIsSetModalVisible(false);
+  }, [isSavingSet]);
+
+  const handleCloseTemplatePicker = useCallback(() => {
+    if (isApplyingTemplate) {
+      return;
+    }
+    setIsTemplateModalVisible(false);
+  }, [isApplyingTemplate]);
+
+  const handleApplyTemplate = useCallback(
+    async (templateId: string, baseHour: number, baseMinute: number) => {
+      const permissionsOk = await ensureCorePermissions();
+      if (!permissionsOk) {
+        return;
+      }
+
+      setIsApplyingTemplate(true);
+      try {
+        await applyAlarmTemplate({ templateId, baseHour, baseMinute });
+        setIsTemplateModalVisible(false);
+        await invalidateAlarms();
+      } catch (error) {
+        console.warn("[Alarm] Failed to apply template", error);
+        Alert.alert("템플릿 적용 실패", "알람 템플릿을 적용하는 중 오류가 발생했습니다.");
+      } finally {
+        setIsApplyingTemplate(false);
+      }
+    },
+    [ensureCorePermissions, invalidateAlarms],
+  );
+
+  const handleDeleteTemplate = useCallback(
+    async (templateId: string) => {
+      if (isApplyingTemplate || isSavingSet) {
+        return;
+      }
+      Alert.alert(
+        "템플릿 삭제",
+        "선택한 알람 템플릿을 삭제할까요?",
+        [
+          { text: "취소", style: "cancel" },
+          {
+            text: "삭제",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await deleteAlarmTemplate(templateId);
+                await queryClient.invalidateQueries({ queryKey: ["alarm-templates"] });
+              } catch (error) {
+                console.warn("[Alarm] Failed to delete template", error);
+                Alert.alert("삭제 실패", "알람 템플릿을 삭제하는 중 오류가 발생했습니다.");
+              }
+            },
+          },
+        ],
+      );
+    },
+    [isApplyingTemplate, isSavingSet, queryClient],
+  );
+
   useEffect(() => {
     if (selectedIds.length === 0) {
       return;
@@ -311,6 +453,7 @@ const HomeScreen: React.FC = () => {
   );
 
   const openCreateEditor = useCallback(() => {
+    setIsFabExpanded(false);
     setEditorState({ mode: "create", draft: createDefaultDraft() });
   }, []);
 
@@ -386,6 +529,20 @@ const HomeScreen: React.FC = () => {
                 </Text>
               </Pressable>
               <Pressable
+                onPress={handleOpenSetModal}
+                accessibilityLabel="세트 저장"
+                disabled={selectionCount === 0 || isSavingSet}
+              >
+                <Text
+                  style={[
+                    styles.selectionAction,
+                    selectionCount === 0 || isSavingSet ? styles.selectionActionDisabled : null,
+                  ]}
+                >
+                  세트 저장
+                </Text>
+              </Pressable>
+              <Pressable
                 onPress={handleDeleteSelected}
                 accessibilityLabel="선택 삭제"
                 disabled={selectionCount === 0 || deleteAlarmsMutation.isPending}
@@ -451,8 +608,42 @@ const HomeScreen: React.FC = () => {
         />
       )}
 
-      <Pressable style={styles.fab} onPress={openCreateEditor} accessibilityLabel="알람 추가">
-        <Text style={styles.fabLabel}>+</Text>
+      {isFabExpanded ? (
+        <>
+          <Pressable style={styles.fabBackdrop} onPress={() => setIsFabExpanded(false)} />
+          <View style={styles.fabMenu}>
+            <Pressable style={styles.fabMenuItem} onPress={openCreateEditor}>
+              <Text style={styles.fabMenuText}>새 알람</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.fabMenuItem,
+                (templatesQuery.data?.length ?? 0) === 0 ? styles.fabMenuItemDisabled : null,
+              ]}
+              onPress={handleOpenTemplateModal}
+              disabled={(templatesQuery.data?.length ?? 0) === 0}
+            >
+              <Text
+                style={[
+                  styles.fabMenuText,
+                  (templatesQuery.data?.length ?? 0) === 0
+                    ? styles.fabMenuTextDisabled
+                    : null,
+                ]}
+              >
+                템플릿 적용
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
+
+      <Pressable
+        style={styles.fab}
+        onPress={() => setIsFabExpanded(prev => !prev)}
+        accessibilityLabel="알람 추가"
+      >
+        <Text style={styles.fabLabel}>{isFabExpanded ? "×" : "+"}</Text>
       </Pressable>
 
       <AlarmEditorModal
@@ -460,6 +651,23 @@ const HomeScreen: React.FC = () => {
         draft={draftForEditor}
         onCancel={closeEditor}
         onSave={handleSaveDraft}
+      />
+      <AlarmSetCreateModal
+        visible={isSetModalVisible}
+        defaultLabel={setModalDefaultLabel}
+        onSubmit={handleConfirmCreateSet}
+        onCancel={handleCloseSetModal}
+        isSaving={isSavingSet}
+      />
+      <AlarmTemplatePickerModal
+        visible={isTemplateModalVisible}
+        templates={templatesQuery.data ?? []}
+        isLoading={templatesQuery.isLoading}
+        isApplying={isApplyingTemplate}
+        onApply={handleApplyTemplate}
+        onClose={handleCloseTemplatePicker}
+        loadEntries={getAlarmTemplateEntries}
+        onDeleteTemplate={handleDeleteTemplate}
       />
     </View>
   );
@@ -576,6 +784,42 @@ const styles = StyleSheet.create({
     fontSize: 36,
     color: "#fff",
     marginTop: -4,
+  },
+  fabBackdrop: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  fabMenu: {
+    position: "absolute",
+    right: 24,
+    bottom: 110,
+    width: 190,
+    borderRadius: 16,
+    backgroundColor: "#fff",
+    paddingVertical: 8,
+    shadowColor: "#00000033",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  fabMenuItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+  },
+  fabMenuItemDisabled: {
+    opacity: 0.5,
+  },
+  fabMenuText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2563eb",
+  },
+  fabMenuTextDisabled: {
+    color: "#94a3b8",
   },
 });
 

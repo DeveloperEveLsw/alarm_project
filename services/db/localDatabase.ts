@@ -3,12 +3,19 @@ import type { AlarmRepeatDay } from '../../types/alarm.types';
 import type {
   AlarmEntity,
   AlarmSetEntity,
+  AlarmSetTemplateEntity,
+  AlarmTemplateEntity,
   DdayEntity,
+  TodoAlarmRelationEntity,
   TodoEntity,
 } from '../../types/generated/roomEntities';
 
 type TodoNative = TodoEntity;
 type AlarmNative = AlarmEntity;
+type TodoAlarmRelationNative = TodoAlarmRelationEntity;
+type AlarmSetNative = AlarmSetEntity;
+type AlarmTemplateNative = AlarmTemplateEntity;
+type AlarmSetTemplateNative = AlarmSetTemplateEntity;
 
 type TodoMutationPayload = {
   id?: number | null;
@@ -23,6 +30,31 @@ type TodoMutationPayload = {
   alarmSetId: string | null;
   ddayId: number | null;
   isDDay: boolean;
+};
+
+type TodoAlarmRelationMutationPayload = {
+  alarmId: string;
+  offsetMinutes: number;
+  orderIndex?: number | null;
+};
+
+type AlarmSetMutationPayload = {
+  id: string;
+  label: string;
+  defaultSound: string;
+  defaultMode?: string;
+  createdAt?: string | null;
+};
+
+type AlarmTemplateEntryPayload = {
+  label?: string | null;
+  offsetMinutes: number;
+  repeatDays: number[];
+  skipHolidays?: boolean;
+  sound: string;
+  vibrate: boolean;
+  policyMode?: string | null;
+  policyPayload?: string | null;
 };
 
 type AlarmPersistPayload = {
@@ -47,6 +79,9 @@ type DatabaseSnapshot = {
   Dday: DdayEntity[];
   AlarmSet: AlarmSetEntity[];
   Alarm: AlarmEntity[];
+  TodoAlarmRelation: TodoAlarmRelationEntity[];
+  AlarmSetTemplate: AlarmSetTemplateEntity[];
+  AlarmTemplate: AlarmTemplateEntity[];
 };
 
 type LocalDatabaseModule = {
@@ -56,6 +91,7 @@ type LocalDatabaseModule = {
   fetchTodos(): Promise<TodoEntity[]>;
   fetchTodosForDate(targetDate: string): Promise<TodoEntity[]>;
   upsertTodo(payloadJson: string): Promise<TodoEntity>;
+  deleteTodo(id: number): Promise<void>;
   fetchAlarms(): Promise<AlarmEntity[]>;
   insertAlarm(payloadJson: string): Promise<void>;
   updateAlarm(payloadJson: string): Promise<void>;
@@ -63,6 +99,17 @@ type LocalDatabaseModule = {
   deleteAlarms(ids: string[]): Promise<void>;
   setAlarmEnabled(id: string, enabled: boolean): Promise<void>;
   getAlarmById(id: string): Promise<AlarmEntity | null>;
+  fetchTodoAlarmRelations(todoId: number): Promise<TodoAlarmRelationEntity[]>;
+  replaceTodoAlarmRelations(
+    todoId: number,
+    payloadJson: string,
+  ): Promise<void>;
+  upsertAlarmSet(payloadJson: string): Promise<void>;
+  assignAlarmsToSet(alarmIds: string[], alarmSetId: string | null): Promise<void>;
+  createAlarmSetTemplate(templateJson: string, entriesJson: string): Promise<void>;
+  fetchAlarmSetTemplates(): Promise<AlarmSetTemplateEntity[]>;
+  fetchAlarmTemplates(templateId: string): Promise<AlarmTemplateEntity[]>;
+  deleteAlarmTemplate(templateId: string): Promise<void>;
 };
 
 const { LocalDatabase } = NativeModules as { LocalDatabase: LocalDatabaseModule | undefined };
@@ -80,6 +127,7 @@ export const localDatabase = {
     LocalDatabase.fetchTodosForDate(targetDate),
   upsertTodo: (payload: TodoMutationPayload): Promise<TodoEntity> =>
     LocalDatabase.upsertTodo(stringify(payload)),
+  deleteTodo: (id: number): Promise<void> => LocalDatabase.deleteTodo(id),
   fetchAlarms: (): Promise<AlarmEntity[]> => LocalDatabase.fetchAlarms(),
   insertAlarm: (payload: AlarmPersistPayload): Promise<void> =>
     LocalDatabase.insertAlarm(stringify(payload)),
@@ -90,6 +138,27 @@ export const localDatabase = {
   setAlarmEnabled: (id: string, enabled: boolean): Promise<void> =>
     LocalDatabase.setAlarmEnabled(id, enabled),
   getAlarmById: (id: string): Promise<AlarmEntity | null> => LocalDatabase.getAlarmById(id),
+  fetchTodoAlarmRelations: (todoId: number): Promise<TodoAlarmRelationNative[]> =>
+    LocalDatabase.fetchTodoAlarmRelations(todoId),
+  replaceTodoAlarmRelations: (
+    todoId: number,
+    payload: TodoAlarmRelationMutationPayload[],
+  ): Promise<void> => LocalDatabase.replaceTodoAlarmRelations(todoId, stringify(payload)),
+  upsertAlarmSet: (payload: AlarmSetMutationPayload): Promise<void> =>
+    LocalDatabase.upsertAlarmSet(stringify(payload)),
+  assignAlarmsToSet: (alarmIds: string[], alarmSetId: string | null): Promise<void> =>
+    LocalDatabase.assignAlarmsToSet(alarmIds, alarmSetId),
+  createAlarmSetTemplate: (
+    template: AlarmSetMutationPayload,
+    entries: AlarmTemplateEntryPayload[],
+  ): Promise<void> =>
+    LocalDatabase.createAlarmSetTemplate(stringify(template), stringify(entries)),
+  fetchAlarmSetTemplates: (): Promise<AlarmSetTemplateNative[]> =>
+    LocalDatabase.fetchAlarmSetTemplates(),
+  fetchAlarmTemplates: (templateId: string): Promise<AlarmTemplateNative[]> =>
+    LocalDatabase.fetchAlarmTemplates(templateId),
+  deleteAlarmTemplate: (templateId: string): Promise<void> =>
+    LocalDatabase.deleteAlarmTemplate(templateId),
   clearAllTables: (): Promise<void> => LocalDatabase.clearAllTables(),
   fetchSnapshot: (): Promise<DatabaseSnapshot> => LocalDatabase.fetchSnapshot(),
 };
@@ -100,4 +169,17 @@ export const databaseDebug = {
   fetchSnapshot: localDatabase.fetchSnapshot,
 };
 
-export type { DatabaseSnapshot, TodoNative, TodoMutationPayload, AlarmNative, AlarmPersistPayload };
+export type {
+  DatabaseSnapshot,
+  TodoNative,
+  TodoMutationPayload,
+  AlarmNative,
+  AlarmPersistPayload,
+  TodoAlarmRelationNative,
+  TodoAlarmRelationMutationPayload,
+  AlarmSetNative,
+  AlarmSetMutationPayload,
+  AlarmSetTemplateNative,
+  AlarmTemplateNative,
+  AlarmTemplateEntryPayload,
+};

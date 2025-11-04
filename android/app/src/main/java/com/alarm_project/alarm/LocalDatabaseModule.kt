@@ -4,7 +4,10 @@ import androidx.room.withTransaction
 import com.alarm_project.alarm.data.local.AlarmRoomDatabase
 import com.alarm_project.alarm.data.local.entity.AlarmEntity
 import com.alarm_project.alarm.data.local.entity.AlarmSetEntity
+import com.alarm_project.alarm.data.local.entity.AlarmSetTemplateEntity
+import com.alarm_project.alarm.data.local.entity.AlarmTemplateEntity
 import com.alarm_project.alarm.data.local.entity.DDayEntity
+import com.alarm_project.alarm.data.local.entity.TodoAlarmRelationEntity
 import com.alarm_project.alarm.data.local.entity.TodoEntity
 import com.alarm_project.alarm.data.local.repository.AlarmLocalDataSource
 import com.facebook.react.bridge.Arguments
@@ -28,6 +31,7 @@ import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.util.Date
 
 private val dbJson = Json { ignoreUnknownKeys = true }
 
@@ -45,6 +49,34 @@ private data class TodoMutationPayload(
     val alarmSetId: String? = null,
     val ddayId: Long? = null,
     val isDDay: Boolean = false,
+)
+
+@Serializable
+private data class TodoAlarmRelationMutationPayload(
+    val alarmId: String,
+    val offsetMinutes: Int,
+    val orderIndex: Int? = null,
+)
+
+@Serializable
+private data class AlarmSetPayload(
+    val id: String,
+    val label: String,
+    val defaultSound: String,
+    val defaultMode: String = "normal",
+    val createdAt: String? = null,
+)
+
+@Serializable
+private data class AlarmTemplateEntryPayload(
+    val label: String? = null,
+    val offsetMinutes: Int,
+    val repeatDays: List<Int> = emptyList(),
+    val skipHolidays: Boolean = false,
+    val sound: String = "",
+    val vibrate: Boolean = true,
+    val policyMode: String? = null,
+    val policyPayload: String? = null,
 )
 
 @Serializable
@@ -111,11 +143,34 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
         scope.launch {
             try {
                 val source = dataSource()
+                val todos = source.getTodos()
+                val dday = source.getDDays()
+                val alarmSets = source.getAlarmSets()
+                val alarms = source.getAlarms()
+                val todoRelations = source.getAllTodoAlarmRelations()
+                val alarmSetTemplates = source.getAlarmSetTemplates()
+                val alarmTemplateMaps = Arguments.createArray()
+                alarmSetTemplates.forEach { template ->
+                    val entries = source.getAlarmTemplates(template.id)
+                    entries.forEach { entry ->
+                        alarmTemplateMaps.pushMap(alarmTemplateToMap(entry))
+                    }
+                }
+
                 val result = Arguments.createMap().apply {
-                    putArray("Todo", toWritableArray(source.getTodos(), ::todoToMap))
-                    putArray("Dday", toWritableArray(source.getDDays(), ::ddayToMap))
-                    putArray("AlarmSet", toWritableArray(source.getAlarmSets(), ::alarmSetToMap))
-                    putArray("Alarm", toWritableArray(source.getAlarms(), ::alarmToMap))
+                    putArray("Todo", toWritableArray(todos, ::todoToMap))
+                    putArray("Dday", toWritableArray(dday, ::ddayToMap))
+                    putArray("AlarmSet", toWritableArray(alarmSets, ::alarmSetToMap))
+                    putArray("Alarm", toWritableArray(alarms, ::alarmToMap))
+                    putArray(
+                        "TodoAlarmRelation",
+                        toWritableArray(todoRelations, ::todoAlarmRelationToMap),
+                    )
+                    putArray(
+                        "AlarmSetTemplate",
+                        toWritableArray(alarmSetTemplates, ::alarmSetTemplateToMap),
+                    )
+                    putArray("AlarmTemplate", alarmTemplateMaps)
                 }
                 withContext(Dispatchers.Main) { promise.resolve(result) }
             } catch (error: Exception) {
@@ -169,6 +224,192 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun fetchTodoAlarmRelations(todoId: Double, promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val source = dataSource()
+                val relations = source.getTodoAlarmRelations(todoId.toLong())
+                val result = toWritableArray(relations, ::todoAlarmRelationToMap)
+                withContext(Dispatchers.Main) { promise.resolve(result) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) {
+                    promise.reject("todo_alarm_relation_fetch_error", error)
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun replaceTodoAlarmRelations(todoId: Double, payloadJson: String, promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val payload = dbJson.decodeFromString<List<TodoAlarmRelationMutationPayload>>(payloadJson)
+                val todoIdLong = todoId.toLong()
+                val relations = payload.mapIndexed { index, relation ->
+                    TodoAlarmRelationEntity(
+                        id = null,
+                        todoId = todoIdLong,
+                        alarmId = relation.alarmId,
+                        offsetMinutes = relation.offsetMinutes,
+                        orderIndex = relation.orderIndex ?: index,
+                    )
+                }
+                val source = dataSource()
+                source.replaceTodoAlarmRelations(todoIdLong, relations)
+                withContext(Dispatchers.Main) { promise.resolve(null) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) {
+                    promise.reject("todo_alarm_relation_replace_error", error)
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun upsertAlarmSet(payloadJson: String, promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val payload = dbJson.decodeFromString<AlarmSetPayload>(payloadJson)
+                val source = dataSource()
+                source.upsertAlarmSet(
+                    AlarmSetEntity(
+                        id = payload.id,
+                        label = payload.label,
+                        defaultSound = payload.defaultSound,
+                        defaultMode = payload.defaultMode,
+                    ),
+                )
+                withContext(Dispatchers.Main) { promise.resolve(null) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) {
+                    promise.reject("alarm_set_upsert_error", error)
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun assignAlarmsToSet(alarmIds: ReadableArray, alarmSetId: String?, promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val ids = mutableListOf<String>()
+                for (index in 0 until alarmIds.size()) {
+                    val id = alarmIds.getString(index)
+                    if (id != null) {
+                        ids.add(id)
+                    }
+                }
+                val source = dataSource()
+                source.assignAlarmsToSet(ids, alarmSetId)
+                withContext(Dispatchers.Main) { promise.resolve(null) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) {
+                    promise.reject("alarm_set_assign_error", error)
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun createAlarmSetTemplate(templateJson: String, entriesJson: String, promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val templatePayload = dbJson.decodeFromString<AlarmSetPayload>(templateJson)
+                val entryPayloads = dbJson.decodeFromString<List<AlarmTemplateEntryPayload>>(entriesJson)
+                val source = dataSource()
+                val template = AlarmSetTemplateEntity(
+                    id = templatePayload.id,
+                    label = templatePayload.label,
+                    defaultSound = templatePayload.defaultSound,
+                    defaultMode = templatePayload.defaultMode,
+                    createdAt = templatePayload.createdAt ?: isoNow(),
+                )
+
+                val entries = entryPayloads.map { entry ->
+                    AlarmTemplateEntity(
+                        id = null,
+                        templateId = templatePayload.id,
+                        label = entry.label ?: "",
+                        offsetMinutes = entry.offsetMinutes,
+                        repeatDaysMask = encodeWeekdays(entry.repeatDays),
+                        skipHolidays = entry.skipHolidays,
+                        sound = entry.sound,
+                        vibrate = entry.vibrate,
+                        policyMode = entry.policyMode ?: "normal",
+                        policyPayload = entry.policyPayload,
+                    )
+                }
+
+                source.upsertAlarmSetTemplate(template)
+                if (entries.isNotEmpty()) {
+                    source.replaceAlarmTemplates(entries)
+                } else {
+                    source.deleteAlarmTemplatesByTemplate(templatePayload.id)
+                }
+
+                withContext(Dispatchers.Main) { promise.resolve(null) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) {
+                    promise.reject("alarm_template_create_error", error)
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun fetchAlarmSetTemplates(promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val templates = dataSource().getAlarmSetTemplates()
+                val result = toWritableArray(templates, ::alarmSetTemplateToMap)
+                withContext(Dispatchers.Main) { promise.resolve(result) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) {
+                    promise.reject("alarm_template_fetch_error", error)
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun fetchAlarmTemplates(templateId: String, promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val entries = dataSource().getAlarmTemplates(templateId)
+                val result = toWritableArray(entries, ::alarmTemplateToMap)
+                withContext(Dispatchers.Main) { promise.resolve(result) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) {
+                    promise.reject("alarm_template_entries_error", error)
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun deleteAlarmTemplate(templateId: String, promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val source = dataSource()
+                source.deleteAlarmSetTemplate(templateId)
+                withContext(Dispatchers.Main) { promise.resolve(null) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) {
+                    promise.reject("alarm_template_delete_error", error)
+                }
+            }
+        }
+    }
+
+    @ReactMethod
     fun upsertTodo(payloadJson: String, promise: Promise) {
         scope.launch {
             try {
@@ -179,6 +420,20 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
                 withContext(Dispatchers.Main) { promise.resolve(map) }
             } catch (error: Exception) {
                 withContext(Dispatchers.Main) { promise.reject("todo_upsert_error", error) }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun deleteTodo(id: Double, promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val todoId = id.toLong()
+                dataSource().deleteTodo(todoId)
+                withContext(Dispatchers.Main) { promise.resolve(null) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { promise.reject("todo_delete_error", error) }
             }
         }
     }
@@ -345,11 +600,41 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
         putString("default_mode", entity.defaultMode)
     }
 
+    private fun alarmSetTemplateToMap(entity: AlarmSetTemplateEntity): WritableMap = Arguments.createMap().apply {
+        putString("id", entity.id)
+        putString("label", entity.label)
+        putString("default_sound", entity.defaultSound)
+        putString("default_mode", entity.defaultMode)
+        if (entity.createdAt != null) putString("created_at", entity.createdAt) else putNull("created_at")
+    }
+
+    private fun alarmTemplateToMap(entity: AlarmTemplateEntity): WritableMap = Arguments.createMap().apply {
+        if (entity.id != null) putDouble("id", entity.id.toDouble()) else putNull("id")
+        putString("template_id", entity.templateId)
+        putString("label", entity.label)
+        putInt("offset_minutes", entity.offsetMinutes)
+        putInt("repeat_days", entity.repeatDaysMask)
+        putBoolean("skip_holidays", entity.skipHolidays)
+        putString("sound", entity.sound)
+        putBoolean("vibrate", entity.vibrate)
+        putString("policy_mode", entity.policyMode)
+        if (entity.policyPayload != null) putString("policy_payload", entity.policyPayload) else putNull("policy_payload")
+    }
+
     private fun ddayToMap(entity: DDayEntity): WritableMap = Arguments.createMap().apply {
         putDouble("id", entity.id.toDouble())
         if (entity.todoId != null) putDouble("todo_id", entity.todoId.toDouble()) else putNull("todo_id")
         putString("target_date", entity.targetDate)
     }
+
+    private fun todoAlarmRelationToMap(entity: TodoAlarmRelationEntity): WritableMap =
+        Arguments.createMap().apply {
+            if (entity.id != null) putDouble("id", entity.id.toDouble()) else putNull("id")
+            putDouble("todo_id", entity.todoId.toDouble())
+            putString("alarm_id", entity.alarmId)
+            putInt("offset_minutes", entity.offsetMinutes)
+            putInt("order_index", entity.orderIndex)
+        }
 
     private suspend fun upsertTodoInternal(payload: TodoMutationPayload): TodoEntity {
         val database = AlarmRoomDatabase.getInstance(appContext)
@@ -400,6 +685,12 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
 
             todoDao.findById(actualId) ?: currentTodo
         }
+    }
+
+    private fun isoNow(): String {
+        val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+        formatter.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        return formatter.format(Date())
     }
 
     private fun filterTodosForDate(todos: List<TodoEntity>, targetDate: String): List<TodoEntity> {

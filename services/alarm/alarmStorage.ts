@@ -53,6 +53,7 @@ const mapNativeToAlarm = (row: AlarmNative): AlarmItem => {
     id: row.id,
     enabled,
     nextTriggerAt,
+    alarmSetId: row.alarm_set_id ?? null,
     ...base,
   };
 };
@@ -70,6 +71,9 @@ const serializePolicyPayload = (payload: AlarmPolicyPayload): string | null => {
 const nextTriggerForPersist = (alarm: PersistableAlarm): number | null => {
   if (!alarm.enabled) {
     return null;
+  }
+  if (typeof alarm.nextTriggerAt === 'number') {
+    return alarm.nextTriggerAt;
   }
   return computeNextTrigger({
     hour: alarm.hour,
@@ -103,6 +107,7 @@ export type PersistableAlarm = {
   ddayId?: number | null;
   policyMode?: AlarmPolicyMode;
   policyPayload?: AlarmPolicyPayload;
+  nextTriggerAt?: number | null;
 };
 
 const toPersistPayload = (alarm: PersistableAlarm): AlarmPersistPayload => ({

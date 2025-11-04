@@ -12,6 +12,10 @@ import { generateAlarmId } from "./id";
 
 const DEFAULT_POLICY_MODE: AlarmPolicyMode = "normal";
 
+type AlarmBuildOptions = {
+  nextTriggerAtOverride?: number | null;
+};
+
 const toPersistable = (alarm: AlarmItem): PersistableAlarm => ({
   id: alarm.id,
   label: alarm.label,
@@ -22,18 +26,25 @@ const toPersistable = (alarm: AlarmItem): PersistableAlarm => ({
   sound: alarm.sound,
   vibrate: alarm.vibrate,
   enabled: alarm.enabled,
-  alarmSetId: null,
+  alarmSetId: alarm.alarmSetId ?? null,
   ddayId: null,
   policyMode: alarm.policyMode ?? DEFAULT_POLICY_MODE,
   policyPayload: alarm.policyPayload ?? null,
+  nextTriggerAt: alarm.nextTriggerAt ?? null,
 });
 
 const buildAlarmItemFromDraft = (
   draft: AlarmDraft,
   id: string,
   enabled: boolean,
+  options?: AlarmBuildOptions,
 ): AlarmItem => {
-  const nextTriggerAt = enabled ? computeNextTrigger(draft).valueOf() : null;
+  const nextTriggerAt =
+    enabled && typeof options?.nextTriggerAtOverride === "number"
+      ? options.nextTriggerAtOverride
+      : enabled
+        ? computeNextTrigger(draft).valueOf()
+        : null;
 
   return {
     id,
@@ -48,12 +59,16 @@ const buildAlarmItemFromDraft = (
     vibrate: draft.vibrate,
     policyMode: draft.policyMode ?? DEFAULT_POLICY_MODE,
     policyPayload: draft.policyPayload ?? null,
+    alarmSetId: draft.alarmSetId ?? null,
   };
 };
 
-export const createAlarmFromDraft = async (draft: AlarmDraft): Promise<AlarmItem> => {
+export const createAlarmFromDraft = async (
+  draft: AlarmDraft,
+  options?: AlarmBuildOptions,
+): Promise<AlarmItem> => {
   const id = draft.id ?? generateAlarmId();
-  const alarm = buildAlarmItemFromDraft(draft, id, true);
+  const alarm = buildAlarmItemFromDraft(draft, id, true, options);
 
   await insertAlarm(toPersistable(alarm));
 
@@ -68,8 +83,9 @@ export const createAlarmFromDraft = async (draft: AlarmDraft): Promise<AlarmItem
 export const updateAlarmFromDraft = async (
   existing: AlarmItem,
   draft: AlarmDraft,
+  options?: AlarmBuildOptions,
 ): Promise<AlarmItem> => {
-  const updated = buildAlarmItemFromDraft(draft, existing.id, existing.enabled);
+  const updated = buildAlarmItemFromDraft(draft, existing.id, existing.enabled, options);
 
   await updateAlarm(toPersistable(updated));
 
@@ -98,6 +114,7 @@ export const toggleAlarmEnabled = async (
       ...alarm,
       enabled: true,
       nextTriggerAt: computeNextTrigger(alarm).valueOf(),
+      alarmSetId: alarm.alarmSetId ?? null,
     };
 
     await setAlarmEnabled(alarm.id, true);
@@ -118,6 +135,7 @@ export const toggleAlarmEnabled = async (
     ...alarm,
     enabled: false,
     nextTriggerAt: null,
+    alarmSetId: alarm.alarmSetId ?? null,
   };
 };
 

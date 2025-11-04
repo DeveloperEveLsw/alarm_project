@@ -14,3 +14,13 @@ export const generateAlarmId = (): string => {
 
   return `alarm-${Date.now()}-${fallbackRandom()}`;
 };
+
+export const generateAlarmSetId = (): string => {
+  const globalCrypto = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+
+  if (globalCrypto?.randomUUID) {
+    return globalCrypto.randomUUID();
+  }
+
+  return `alarm-set-${Date.now()}-${fallbackRandom()}`;
+};

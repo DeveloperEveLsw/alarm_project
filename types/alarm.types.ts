@@ -16,6 +16,7 @@ export type AlarmBase = {
   vibrate: boolean;
   policyMode?: AlarmPolicyMode;
   policyPayload?: AlarmPolicyPayload;
+  alarmSetId?: string | null;
 };
 
 export type AlarmDraft = AlarmBase & {
