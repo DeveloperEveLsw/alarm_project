@@ -77,3 +77,6 @@ yarn-error.log
 # ai in/out
 forYou.md
 forMe.md
+
+# Environment variables
+.env

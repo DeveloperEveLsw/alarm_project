@@ -141,4 +141,56 @@ kapt {
 
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
 
+def repoRoot = projectDir.parentFile.parentFile
+def nodeExecutable = System.getenv("NODE_BINARY") ?: "node"
+def supabaseScript = new File(repoRoot, "scripts/generate-supabase-types.mjs")
+def roomScript = new File(repoRoot, "scripts/generate-db-types.mjs")
+def supabaseOutput = new File(repoRoot, "types/generated/supabase.ts")
+def roomEntitiesOutput = new File(repoRoot, "types/generated/roomEntities.ts")
+def roomDaosOutput = new File(repoRoot, "types/generated/roomDaos.ts")
+def schemaDir = new File(projectDir, "schemas")
+def roomDaoDir = new File(projectDir, "src/main/java/com/alarm_project/alarm/data/local/dao")
+def roomEntityDir = new File(projectDir, "src/main/java/com/alarm_project/alarm/data/local/entity")
+
+tasks.register("generateSupabaseTypes", Exec) {
+    group = "codegen"
+    description = "Generates Supabase TypeScript definitions before Android builds."
+    workingDir repoRoot
+    commandLine nodeExecutable, supabaseScript.absolutePath
+    environment System.getenv()
+    inputs.file supabaseScript
+    outputs.file supabaseOutput
+}
+
+tasks.register("generateRoomTypes", Exec) {
+    group = "codegen"
+    description = "Synchronizes Kotlin Room schemas to TypeScript definitions."
+    workingDir repoRoot
+    commandLine nodeExecutable, roomScript.absolutePath
+    environment System.getenv()
+    inputs.file roomScript
+    if (schemaDir.exists()) {
+        inputs.dir schemaDir
+    }
+    if (roomDaoDir.exists()) {
+        inputs.dir roomDaoDir
+    }
+    if (roomEntityDir.exists()) {
+        inputs.dir roomEntityDir
+    }
+    outputs.file roomEntitiesOutput
+    outputs.file roomDaosOutput
+}
+
+tasks.register("syncTypeDefinitions") {
+    group = "codegen"
+    description = "Ensures TypeScript definitions from Supabase + Room are up-to-date."
+    dependsOn("generateSupabaseTypes", "generateRoomTypes")
+}
+
+afterEvaluate {
+    tasks.matching { task -> task.name.matches('^pre.*Build$') }.configureEach {
+        dependsOn("syncTypeDefinitions")
+    }
+}
 

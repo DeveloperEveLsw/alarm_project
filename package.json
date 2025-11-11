@@ -7,6 +7,8 @@
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "refresh-db-types": "node scripts/generate-db-types.mjs",
+    "refresh-supabase-types": "node scripts/generate-supabase-types.mjs",
+    "sync-types": "npm run refresh-db-types && npm run refresh-supabase-types",
     "start": "react-native start",
     "test": "jest"
   },
@@ -25,6 +27,7 @@
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "^4.15.4",
     "react-native-vector-icons": "^10.3.0",
+    "supabase": "^2.54.11",
     "tslib": "^2.8.1",
     "zustand": "^5.0.8"
   },

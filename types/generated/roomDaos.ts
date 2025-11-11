@@ -64,6 +64,8 @@ export interface AlarmSetTemplateDaoContract {
   update(entity: RoomEntities.AlarmSetTemplateEntity): Promise<void>;
   // @Delete
   delete(entity: RoomEntities.AlarmSetTemplateEntity): Promise<void>;
+  // @Query("DELETE FROM AlarmSetTemplate WHERE id = :id")
+  deleteById(id: string): Promise<void>;
 }
 
 // Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/AlarmTemplateDao.kt
@@ -85,19 +87,19 @@ export interface AlarmTemplateDaoContract {
 // Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/DDayDao.kt
 export interface DDayDaoContract {
   // @Query("SELECT * FROM Dday ORDER BY target_date ASC")
-  observeAll(): RoomFlow<RoomEntities.DdayEntity[]>;
+  observeAll(): RoomFlow<RoomEntities.DDayEntity[]>;
   // @Query("SELECT * FROM Dday WHERE id = :id LIMIT 1")
-  findById(id: number): Promise<RoomEntities.DdayEntity | null>;
+  findById(id: number): Promise<RoomEntities.DDayEntity | null>;
   // @Insert(onConflict = OnConflictStrategy.REPLACE)
-  upsert(entity: RoomEntities.DdayEntity): Promise<number>;
+  upsert(entity: RoomEntities.DDayEntity): Promise<number>;
   // @Update
-  update(entity: RoomEntities.DdayEntity): Promise<void>;
+  update(entity: RoomEntities.DDayEntity): Promise<void>;
   // @Delete
-  delete(entity: RoomEntities.DdayEntity): Promise<void>;
+  delete(entity: RoomEntities.DDayEntity): Promise<void>;
   // @Query("DELETE FROM Dday WHERE id = :id")
   deleteById(id: number): Promise<void>;
   // @Query("SELECT * FROM Dday ORDER BY id ASC")
-  getAll(): Promise<RoomEntities.DdayEntity[]>;
+  getAll(): Promise<RoomEntities.DDayEntity[]>;
 }
 
 // Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/TodoAlarmRelationDao.kt
