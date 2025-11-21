@@ -155,6 +155,27 @@ class PermissionModule(private val reactContext: ReactApplicationContext) :
         promise.resolve(launched)
     }
 
+    @ReactMethod
+    fun canDrawOverlays(promise: Promise) {
+        val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(reactContext)
+        promise.resolve(granted)
+    }
+
+    @ReactMethod
+    fun requestOverlayPermission(promise: Promise) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            promise.resolve(true)
+            return
+        }
+
+        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+            data = Uri.parse("package:${reactContext.packageName}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val launched = runCatching { reactContext.startActivity(intent) }.isSuccess
+        promise.resolve(launched)
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<String>,

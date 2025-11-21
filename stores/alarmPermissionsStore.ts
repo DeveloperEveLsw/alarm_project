@@ -14,6 +14,8 @@ type PermissionBridge = {
   requestVibrate: () => Promise<boolean>;
   canScheduleExactAlarms: () => Promise<boolean>;
   openScheduleExactAlarmSettings: () => Promise<boolean>;
+  canDrawOverlays: () => Promise<boolean>;
+  requestOverlayPermission: () => Promise<boolean>;
 };
 
 const PermissionModule: Partial<PermissionBridge> = isAndroid ? NativeModules.PermissionModule ?? {} : {};
@@ -24,6 +26,7 @@ export type AlarmPermissionState = {
   hasBackgroundLocation: boolean;
   hasExactAlarm: boolean;
   hasVibrate: boolean;
+  hasOverlay: boolean;
   lastCheckedAt: number | null;
   hydratePermissions: () => Promise<void>;
   requestPostNotifications: () => Promise<boolean>;
@@ -32,6 +35,7 @@ export type AlarmPermissionState = {
   requestVibrate: () => Promise<boolean>;
   openExactAlarmSettings: () => Promise<void>;
   acknowledgeExactAlarmPermission: (granted: boolean) => void;
+  requestOverlayPermission: () => Promise<boolean>;
 };
 
 export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) => ({
@@ -40,6 +44,7 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
   hasBackgroundLocation: !isAndroid,
   hasExactAlarm: !isAndroid,
   hasVibrate: !isAndroid,
+  hasOverlay: !isAndroid,
   lastCheckedAt: null,
 
   hydratePermissions: async () => {
@@ -50,18 +55,20 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
         hasBackgroundLocation: true,
         hasExactAlarm: true,
         hasVibrate: true,
+        hasOverlay: true,
         lastCheckedAt: Date.now(),
       });
       return;
     }
 
     try {
-      const [post, fine, background, vibrate, exact] = await Promise.all([
+      const [post, fine, background, vibrate, exact, overlay] = await Promise.all([
         PermissionModule.checkPostNotifications(),
         PermissionModule.checkFineLocation?.() ?? Promise.resolve(false),
         PermissionModule.checkBackgroundLocation?.() ?? Promise.resolve(false),
         PermissionModule.checkVibrate?.() ?? Promise.resolve(true),
         PermissionModule.canScheduleExactAlarms?.() ?? Promise.resolve(false),
+        PermissionModule.canDrawOverlays?.() ?? Promise.resolve(false),
       ]);
 
       set({
@@ -70,6 +77,7 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
         hasBackgroundLocation: background,
         hasVibrate: vibrate,
         hasExactAlarm: exact,
+        hasOverlay: overlay,
         lastCheckedAt: Date.now(),
       });
     } catch (error) {
@@ -80,6 +88,7 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
         hasBackgroundLocation: false,
         hasExactAlarm: false,
         hasVibrate: false,
+        hasOverlay: false,
         lastCheckedAt: Date.now(),
       });
     }
@@ -163,5 +172,24 @@ export const useAlarmPermissionsStore = create<AlarmPermissionState>((set, get) 
 
   acknowledgeExactAlarmPermission: (granted: boolean) => {
     set({ hasExactAlarm: granted });
+  },
+
+  requestOverlayPermission: async () => {
+    if (!isAndroid || !PermissionModule.requestOverlayPermission) {
+      set({ hasOverlay: true });
+      return true;
+    }
+
+    try {
+      const launched = await PermissionModule.requestOverlayPermission();
+      if (!launched) {
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.warn("[Permissions] requestOverlayPermission failed", error);
+      set({ hasOverlay: false });
+      return false;
+    }
   },
 }));

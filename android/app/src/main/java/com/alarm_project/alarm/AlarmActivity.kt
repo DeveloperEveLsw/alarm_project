@@ -19,11 +19,12 @@ class AlarmActivity : Activity() {
 
         val dismissButton: Button = findViewById(R.id.alarmDismissButton)
         val snoozeButton: Button = findViewById(R.id.alarmSnoozeButton)
-        val messageView: TextView = findViewById(R.id.alarmMessage)
+        val labelView: TextView = findViewById(R.id.alarmLabel)
 
         val alarmId = intent.getStringExtra("alarm_id") ?: return
+        val alarmLabel = intent.getStringExtra("alarm_label")
 
-        messageView.text = getString(R.string.alarm_running_message)
+        labelView.text = alarmLabel?.takeIf { it.isNotBlank() } ?: getString(R.string.alarm_default_label)
 
         dismissButton.setOnClickListener {
             AlarmEngineModuleHelper.sendDismiss(this, alarmId)

@@ -7,10 +7,12 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.alarm_project.R
+import java.util.Date
 
 object AlarmNotifications {
     fun ensureChannels(context: Context) {
@@ -48,12 +50,14 @@ object AlarmNotifications {
         spec: AlarmSpec,
         isRinging: Boolean,
         fullScreen: Boolean,
-        channelOverride: AlarmChannel? = null
+        channelOverride: AlarmChannel? = null,
+        showLegacyHeadsUp: Boolean = false,
     ): Notification {
         ensureChannels(context)
         val alarmActivityIntent = Intent(context, AlarmActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("alarm_id", spec.id)
+            spec.label?.let { putExtra("alarm_label", it) }
         }
 
         val alarmActivityPendingIntent = PendingIntent.getActivity(
@@ -68,9 +72,11 @@ object AlarmNotifications {
             AlarmChannel.ALARMS -> AlarmConstants.NOTIFICATION_CHANNEL_ALARMS
         }
 
+        val hasLabel = !spec.label.isNullOrBlank()
+        val fallbackTitle = context.getString(R.string.alarm_notification_title)
+        val contentTitle = spec.label?.takeIf { it.isNotBlank() } ?: fallbackTitle
+
         val builder = NotificationCompat.Builder(context, channelId)
-            .setContentTitle(spec.label ?: context.getString(R.string.alarm_notification_title))
-            .setContentText(context.getString(R.string.alarm_notification_body))
             .setSmallIcon(R.drawable.ic_stat_alarm)
             .setContentIntent(alarmActivityPendingIntent)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -78,6 +84,14 @@ object AlarmNotifications {
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOnlyAlertOnce(true)
+
+        if (isRinging && !fullScreen) {
+            builder.setContentTitle(contentTitle)
+            builder.setContentText(formatFireTime(context, spec.fireAt))
+        } else {
+            builder.setContentTitle(contentTitle)
+            builder.setContentText(context.getString(R.string.alarm_notification_body))
+        }
 
         val dismissIntent = AlarmEngineModuleHelper.createCommandPendingIntent(
             context,
@@ -90,13 +104,16 @@ object AlarmNotifications {
             SnoozeCommand(spec.id, null)
         )
 
-        builder.addAction(
-            NotificationCompat.Action(
-                android.R.drawable.ic_menu_recent_history,
-                context.getString(R.string.alarm_action_snooze),
-                snoozeIntent,
+        if (!isRinging || fullScreen) {
+            builder.addAction(
+                NotificationCompat.Action(
+                    android.R.drawable.ic_menu_recent_history,
+                    context.getString(R.string.alarm_action_snooze),
+                    snoozeIntent,
+                )
             )
-        )
+        }
+
         builder.addAction(
             NotificationCompat.Action(
                 android.R.drawable.ic_menu_close_clear_cancel,
@@ -105,28 +122,36 @@ object AlarmNotifications {
             )
         )
 
-        if (isRinging) {
-            builder.setPriority(NotificationCompat.PRIORITY_MAX)
-            builder.setFullScreenIntent(alarmActivityPendingIntent, fullScreen)
-            builder.setDefaults(NotificationCompat.DEFAULT_VIBRATE)
-            if (!fullScreen) {
-                val remoteViews = RemoteViews(context.packageName, R.layout.notification_alarm_heads_up).apply {
-                    val title = spec.label ?: context.getString(R.string.alarm_notification_heads_up_title)
-                    setTextViewText(R.id.alarm_heads_up_title, title)
-                    setTextViewText(R.id.alarm_heads_up_message, context.getString(R.string.alarm_notification_heads_up_message))
-                    setOnClickPendingIntent(R.id.alarm_heads_up_snooze, snoozeIntent)
-                    setOnClickPendingIntent(R.id.alarm_heads_up_dismiss, dismissIntent)
-                }
-                builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                builder.setCustomContentView(remoteViews)
-                builder.setCustomHeadsUpContentView(remoteViews)
-                builder.setCustomBigContentView(remoteViews)
+        if (isRinging && showLegacyHeadsUp && !fullScreen) {
+            Log.d("AlarmNotifications", "Using legacy heads-up layout for alarm ${spec.id}")
+            val remoteViews = RemoteViews(context.packageName, R.layout.notification_alarm_heads_up).apply {
+                setTextViewText(R.id.alarm_heads_up_app_name, contentTitle)
+                setTextViewText(R.id.alarm_heads_up_time, formatFireTime(context, spec.fireAt))
+                setOnClickPendingIntent(R.id.alarm_heads_up_dismiss, dismissIntent)
             }
+            builder.setCustomContentView(remoteViews)
+            builder.setCustomHeadsUpContentView(remoteViews)
+        }
+
+        if (isRinging) {
+            if (channelId == AlarmConstants.NOTIFICATION_CHANNEL_SILENT) {
+                builder.setPriority(NotificationCompat.PRIORITY_LOW)
+                builder.setDefaults(0)
+            } else {
+                builder.setPriority(NotificationCompat.PRIORITY_MAX)
+                builder.setDefaults(NotificationCompat.DEFAULT_VIBRATE)
+            }
+            builder.setFullScreenIntent(alarmActivityPendingIntent, fullScreen)
         } else {
             builder.setPriority(NotificationCompat.PRIORITY_HIGH)
         }
 
-        return builder.build()
+        return builder.build().apply {
+            // Make sure no custom big layout exists so the expand affordance is hidden
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                bigContentView = null
+            }
+        }
     }
 
     fun notifyEvent(context: Context, notificationId: Int, notification: Notification) {
@@ -135,5 +160,10 @@ object AlarmNotifications {
 
     private fun buildActionRequestCode(id: String, suffix: String): Int {
         return (id + suffix).hashCode()
+    }
+
+    private fun formatFireTime(context: Context, fireAt: Long): String {
+        val formatter = android.text.format.DateFormat.getTimeFormat(context)
+        return formatter.format(Date(fireAt))
     }
 }

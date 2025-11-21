@@ -14,7 +14,6 @@ import SubScreenTwo from './screens/SubScreenTwo';
 import ScheduleEditorScreen from './screens/ScheduleEditorScreen';
 import CustomHeader from './Components/CustomHeader';
 import TodoScreen from './screens/TodoScreen';
-import AlarmScreen from './screens/AlarmScreen';
 import DDayScreen from './screens/DDayScreen';
 import AlarmPermissionsScreen from './screens/AlarmPermissionsScreen';
 import AlarmMathScreen from './screens/AlarmMathScreen';
@@ -71,38 +70,6 @@ function App() {
     });
   }, [hydratePermissions]);
 
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-
-    const unsubscribe = AlarmEngine.addListener(async event => {
-      if (!navigationRef.isReady()) {
-        return;
-      }
-
-      switch (event.type) {
-        case 'FIRED': {
-          await AlarmEngine.send({ type: 'RING_NATIVE', id: event.id, fullScreen: true }).catch(console.error);
-          const mode = event.ctx.policy.mode;
-          if (mode === 'math') {
-            navigationRef.navigate('AlarmMath', { alarmId: event.id, seed: Date.now() });
-          } else if (mode === 'shake') {
-            navigationRef.navigate('AlarmShake', { alarmId: event.id, targetShakes: 20 });
-          } else {
-            navigationRef.navigate('Alarm', { alarmId: event.id });
-          }
-          break;
-        }
-        case 'ERROR':
-          console.warn(`[AlarmEngine] ${event.code}: ${event.message}`);
-          break;
-        default:
-          break;
-      }
-    });
-
-    return unsubscribe;
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
@@ -123,7 +90,6 @@ function App() {
                 })}
               />
               <Stack.Screen name="Todo" component={TodoScreen} options={{ title: '할 일' }} />
-              <Stack.Screen name="Alarm" component={AlarmScreen} options={{ title: '알람' }} />
               <Stack.Screen name="DDay" component={DDayScreen} options={{ title: 'D-DAY' }} />
               <Stack.Screen name="AlarmPermissions" component={AlarmPermissionsScreen} options={{ title: '알람 권한 안내' }} />
               <Stack.Screen
