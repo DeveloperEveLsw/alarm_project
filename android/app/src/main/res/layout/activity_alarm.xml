@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:background="#0B0F1A"
+    android:padding="32dp">
+
+    <TextView
+        android:id="@+id/alarmTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/alarm_title_text"
+        android:textSize="18sp"
+        android:textColor="#CBD5F5"
+        android:textStyle="bold"
+        android:letterSpacing="0.05"
+        android:drawablePadding="8dp"
+        android:textAlignment="center"
+        android:layout_marginBottom="12dp" />
+
+    <TextClock
+        android:id="@+id/alarmTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:format12Hour="hh:mm"
+        android:format24Hour="HH:mm"
+        android:textColor="#F8FAFC"
+        android:textSize="96sp"
+        android:textStyle="bold"
+        android:includeFontPadding="false"
+        android:textAlignment="center"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:id="@+id/alarmLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#E2E8F0"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        android:letterSpacing="0.02"
+        android:textAlignment="center"
+        android:layout_marginBottom="48dp"
+        android:text="" />
+
+    <Button
+        android:id="@+id/alarmSnoozeButton"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:text="다시 울리기"
+        android:textAllCaps="false"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#1F2937"
+        android:background="@drawable/bg_alarm_snooze_button"
+        android:layout_marginBottom="16dp"
+        android:stateListAnimator="@null" />
+
+    <Button
+        android:id="@+id/alarmDismissButton"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:text="알람 끄기"
+        android:textAllCaps="false"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#F8FAFC"
+        android:background="@drawable/bg_alarm_stop_button"
+        android:stateListAnimator="@null" />
+
+</LinearLayout>

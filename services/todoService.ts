@@ -1,79 +1,14 @@
 import dayjs from 'dayjs';
 
-import type { ResultSet } from 'react-native-sqlite-storage';
-import type { ScheduleTodo, ScheduleTodoFormData } from '../types/todo.types';
-import { DBManager } from './db/db';
-
-type TodoRow = Record<string, any>;
-
-type UpdateTodoParams = {
-  todo: ScheduleTodo;
-  formData: ScheduleTodoFormData;
-  targetDate: string;
-};
-
-type CreateTodoParams = {
-  formData: ScheduleTodoFormData;
-  targetDate: string;
-};
-
-const parseRepeatWeekdays = (row: TodoRow): number[] | null => {
-  const { repeat_weekday: repeatWeekday } = row;
-  if (typeof repeatWeekday !== 'string') {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(repeatWeekday);
-    if (!Array.isArray(parsed)) {
-      return null;
-    }
-
-    const normalized = parsed
-      .map(value => Number(value))
-      .filter(value => Number.isInteger(value) && value >= 0 && value <= 6);
-
-    return normalized.length > 0 ? normalized : [];
-  } catch (error) {
-    console.warn('Failed to parse repeat_weekday JSON', row.id, error);
-    return null;
-  }
-};
-
-const mapRowToTodo = (row: TodoRow): ScheduleTodo => {
-  const repeatWeekdays = parseRepeatWeekdays(row);
-
-  return {
-    id: Number(row.id),
-    title: typeof row.title === 'string' ? row.title : '',
-    dueDate: typeof row.due_date === 'string' ? row.due_date : null,
-    dueTime: typeof row.due_time === 'string' ? row.due_time : null,
-    isRepeating: Number(row.is_repeating) === 1,
-    repeatType:
-      row.repeat_type === 'weekly' || row.repeat_type === 'monthly'
-        ? (row.repeat_type as 'weekly' | 'monthly')
-        : null,
-    repeatWeekdays,
-    repeatDayOfMonth:
-      row.repeat_day_of_month !== null && row.repeat_day_of_month !== undefined
-        ? Number(row.repeat_day_of_month)
-        : null,
-    ddayId:
-      row.dday_id !== null && row.dday_id !== undefined ? Number(row.dday_id) : null,
-    alarmId:
-      row.alarm_id !== null && row.alarm_id !== undefined ? Number(row.alarm_id) : null,
-    alarmSetId:
-      row.alarm_set_id !== null && row.alarm_set_id !== undefined ? Number(row.alarm_set_id) : null,
-  };
-};
-
-const mapResultToTodos = (result: ResultSet): ScheduleTodo[] => {
-  const todos: ScheduleTodo[] = [];
-  for (let index = 0; index < result.rows.length; index += 1) {
-    todos.push(mapRowToTodo(result.rows.item(index)));
-  }
-  return todos;
-};
+import type { ScheduleTodo, ScheduleTodoAlarmRelation, ScheduleTodoFormData } from '../types/todo.types';
+import {
+  localDatabase,
+  type TodoAlarmRelationMutationPayload,
+  type TodoAlarmRelationNative,
+  type TodoMutationPayload,
+  type TodoNative,
+} from './db/localDatabase';
+import { decodeWeekdays } from '../utils/repeatMask';
 
 const buildDueTime = (formData: ScheduleTodoFormData): string | null => {
   if (!formData.isTimePickerVisible) {
@@ -84,21 +19,62 @@ const buildDueTime = (formData: ScheduleTodoFormData): string | null => {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 };
 
-const buildRepeatPayload = (formData: ScheduleTodoFormData, dueDate: string) => {
-  const isRepeating = formData.isRepeatSectionVisible && formData.repeatType ? 1 : 0;
-  const repeatTypeToSave = isRepeating ? formData.repeatType : null;
-  const repeatWeekday =
-    isRepeating &&
-    formData.repeatType === 'weekly' &&
-    formData.selectedWeekdays.length > 0
-      ? JSON.stringify(formData.selectedWeekdays)
-      : null;
-  const repeatDayOfMonth =
-    isRepeating && formData.repeatType === 'monthly' && dueDate
-      ? Number(dueDate.split('-')[2]) || null
-      : null;
+const normalizeRepeatType = (value: string | null): ScheduleTodo['repeatType'] => {
+  if (value === 'weekly' || value === 'monthly') {
+    return value;
+  }
+  return null;
+};
 
-  return { isRepeating, repeatTypeToSave, repeatWeekday, repeatDayOfMonth };
+const mapNativeToSchedule = (row: TodoNative): ScheduleTodo => ({
+  id: row.id != null ? Number(row.id) : 0,
+  title: row.title,
+  dueDate: row.due_date,
+  dueTime: row.due_time,
+  isRepeating: row.is_repeating,
+  repeatType: normalizeRepeatType(row.repeat_type),
+  repeatWeekdays: decodeWeekdays(row.repeat_weekday),
+  repeatDayOfMonth: row.repeat_day_of_month,
+  ddayId: row.dday_id != null ? Number(row.dday_id) : null,
+  alarmId: row.alarm_id ?? null,
+  alarmSetId: row.alarm_set_id ?? null,
+  alarmTemplateId: null,
+  alarmRelations: [],
+});
+
+const mapNativeRelation = (row: TodoAlarmRelationNative): ScheduleTodoAlarmRelation => ({
+  id: row.id != null ? Number(row.id) : null,
+  todoId: Number(row.todo_id),
+  alarmId: row.alarm_id,
+  offsetMinutes: row.offset_minutes,
+  orderIndex: row.order_index,
+});
+
+const buildMutationPayload = (
+  formData: ScheduleTodoFormData,
+  targetDate: string,
+  existing?: ScheduleTodo,
+): TodoMutationPayload => {
+  const repeatType = formData.isRepeatSectionVisible ? formData.repeatType : null;
+  const repeatWeekdays =
+    repeatType === 'weekly' ? [...formData.selectedWeekdays] : [];
+  const repeatDayOfMonth =
+    repeatType === 'monthly' && targetDate ? Number(targetDate.split('-')[2]) || null : null;
+
+  return {
+    id: existing?.id ?? null,
+    title: formData.title,
+    dueDate: targetDate,
+    dueTime: buildDueTime(formData),
+    isRepeating: Boolean(repeatType),
+    repeatType,
+    repeatWeekdays,
+    repeatDayOfMonth,
+    alarmId: existing?.alarmId ?? null,
+    alarmSetId: existing?.alarmSetId ?? null,
+    ddayId: existing?.ddayId ?? null,
+    isDDay: formData.isDDay,
+  };
 };
 
 export const filterTodosByDate = (todos: ScheduleTodo[], targetDate: string): ScheduleTodo[] => {
@@ -127,127 +103,93 @@ export const filterTodosByDate = (todos: ScheduleTodo[], targetDate: string): Sc
   });
 };
 
+const attachAlarmRelations = async (todos: ScheduleTodo[]): Promise<ScheduleTodo[]> => {
+  await Promise.all(
+    todos.map(async todo => {
+      if (!todo.id) {
+        todo.alarmRelations = [];
+        return;
+      }
+      const relations = await getTodoAlarmRelations(todo.id);
+      todo.alarmRelations = relations;
+    }),
+  );
+  return todos;
+};
+
 const getAllTodos = async (): Promise<ScheduleTodo[]> => {
-  const db = await DBManager.getDB();
-  const [result] = await db.executeSql('SELECT * FROM Todo;');
-  return mapResultToTodos(result);
+  const rows = await localDatabase.fetchTodos();
+  const todos = rows.map(mapNativeToSchedule);
+  await attachAlarmRelations(todos);
+  return todos;
 };
 
 const getTodosForDate = async (targetDate: string): Promise<ScheduleTodo[]> => {
-  const db = await DBManager.getDB();
-
-  const [nonRepeatingResult] = await db.executeSql(
-    `SELECT * FROM Todo WHERE due_date = ? AND (is_repeating IS NULL OR is_repeating = 0);`,
-    [targetDate],
-  );
-  const nonRepeatingTodos = mapResultToTodos(nonRepeatingResult);
-
-  const [repeatingResult] = await db.executeSql(`SELECT * FROM Todo WHERE is_repeating = 1;`);
-  const repeatingTodos = mapResultToTodos(repeatingResult);
-  const filteredRepeatingTodos = filterTodosByDate(repeatingTodos, targetDate);
-
-  return [...nonRepeatingTodos, ...filteredRepeatingTodos];
+  const rows = await localDatabase.fetchTodosForDate(targetDate);
+  const todos = rows.map(mapNativeToSchedule);
+  await attachAlarmRelations(todos);
+  return todos;
 };
 
-const updateTodo = async ({ todo, formData, targetDate }: UpdateTodoParams): Promise<void> => {
-  const db = await DBManager.getDB();
-  const dueDate = targetDate;
-  const dueTime = buildDueTime(formData);
-  const { isRepeating, repeatTypeToSave, repeatWeekday, repeatDayOfMonth } = buildRepeatPayload(
-    formData,
-    dueDate,
-  );
-
-  await db.executeSql(
-    `UPDATE Todo SET
-      title = ?,
-      description = ?,
-      due_date = ?,
-      due_time = ?,
-      is_repeating = ?,
-      repeat_type = ?,
-      repeat_weekday = ?,
-      repeat_day_of_month = ?,
-      alarm_id = ?,
-      alarm_set_id = ?
-    WHERE id = ?;`,
-    [
-      formData.title,
-      null,
-      dueDate,
-      dueTime,
-      isRepeating,
-      repeatTypeToSave,
-      repeatWeekday,
-      repeatDayOfMonth,
-      todo.alarmId,
-      todo.alarmSetId,
-      todo.id,
-    ],
-  );
-
-  if (formData.isDDay) {
-    if (todo.ddayId) {
-      await db.executeSql(`UPDATE Dday SET target_date = ? WHERE id = ?;`, [dueDate, todo.ddayId]);
-    } else {
-      const [insertDdayResult] = await db.executeSql(
-        `INSERT INTO Dday (todo_id, target_date) VALUES (?, ?);`,
-        [todo.id, dueDate],
-      );
-      await db.executeSql(`UPDATE Todo SET dday_id = ? WHERE id = ?;`, [insertDdayResult.insertId, todo.id]);
-    }
-  } else if (todo.ddayId) {
-    await db.executeSql(`DELETE FROM Dday WHERE id = ?;`, [todo.ddayId]);
-    await db.executeSql(`UPDATE Todo SET dday_id = NULL WHERE id = ?;`, [todo.id]);
-  }
+const getTodoAlarmRelations = async (todoId: number): Promise<ScheduleTodoAlarmRelation[]> => {
+  const rows = await localDatabase.fetchTodoAlarmRelations(todoId);
+  return rows.map(mapNativeRelation);
 };
 
-const createTodo = async ({ formData, targetDate }: CreateTodoParams): Promise<void> => {
-  const db = await DBManager.getDB();
-  const dueDate = targetDate;
-  const dueTime = buildDueTime(formData);
-  const { isRepeating, repeatTypeToSave, repeatWeekday, repeatDayOfMonth } = buildRepeatPayload(
-    formData,
-    dueDate,
-  );
+const replaceTodoAlarmRelations = async (
+  todoId: number,
+  relations: Array<Omit<ScheduleTodoAlarmRelation, 'id' | 'todoId'>>,
+): Promise<void> => {
+  const payload: TodoAlarmRelationMutationPayload[] = relations.map(relation => ({
+    alarmId: relation.alarmId,
+    offsetMinutes: relation.offsetMinutes,
+    orderIndex: relation.orderIndex,
+  }));
+  await localDatabase.replaceTodoAlarmRelations(todoId, payload);
+};
 
-  const [insertTodoResult] = await db.executeSql(
-    `INSERT INTO Todo (
-      title,
-      description,
-      due_date,
-      due_time,
-      is_repeating,
-      repeat_type,
-      repeat_weekday,
-      repeat_day_of_month,
-      dday_id,
-      alarm_id,
-      alarm_set_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-    [
-      formData.title,
-      null,
-      dueDate,
-      dueTime,
-      isRepeating,
-      repeatTypeToSave,
-      repeatWeekday,
-      repeatDayOfMonth,
-      null,
-      null,
-      null,
-    ],
-  );
-
-  const todoId = insertTodoResult.insertId;
-  if (formData.isDDay && todoId) {
-    const [insertDdayResult] = await db.executeSql(
-      `INSERT INTO Dday (todo_id, target_date) VALUES (?, ?);`,
-      [todoId, dueDate],
-    );
-    await db.executeSql(`UPDATE Todo SET dday_id = ? WHERE id = ?;`, [insertDdayResult.insertId, todoId]);
+const updateTodo = async ({
+  todo,
+  formData,
+  targetDate,
+}: {
+  todo: ScheduleTodo;
+  formData: ScheduleTodoFormData;
+  targetDate: string;
+}): Promise<ScheduleTodo> => {
+  const payload = buildMutationPayload(formData, targetDate, todo);
+  const updated = await localDatabase.upsertTodo(payload);
+  const schedule = mapNativeToSchedule(updated);
+  if (schedule.id) {
+    schedule.alarmRelations = await getTodoAlarmRelations(schedule.id);
   }
+  return schedule;
+};
+
+const createTodo = async ({
+  formData,
+  targetDate,
+}: {
+  formData: ScheduleTodoFormData;
+  targetDate: string;
+}): Promise<ScheduleTodo> => {
+  const payload = buildMutationPayload(formData, targetDate);
+  const created = await localDatabase.upsertTodo({
+    ...payload,
+    id: null,
+    alarmId: null,
+    alarmSetId: null,
+    ddayId: null,
+  });
+  const schedule = mapNativeToSchedule(created);
+  if (schedule.id) {
+    schedule.alarmRelations = await getTodoAlarmRelations(schedule.id);
+  }
+  return schedule;
+};
+
+const deleteTodo = async (todoId: number): Promise<void> => {
+  await localDatabase.deleteTodo(todoId);
 };
 
 export const todoService = {
@@ -256,5 +198,7 @@ export const todoService = {
   filterTodosByDate,
   updateTodo,
   createTodo,
+  deleteTodo,
+  getTodoAlarmRelations,
+  replaceTodoAlarmRelations,
 };
-

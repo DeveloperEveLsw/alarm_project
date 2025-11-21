@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 
-import { Dimensions, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { CalendarList, DateData } from 'react-native-calendars';
 import dayjs from 'dayjs';
@@ -15,7 +15,7 @@ import type { ScheduleTodo } from '../types/todo.types';
 type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Main'>;
 
 const CalendarScreen: React.FC = () => {
-  const [currentDateLabel, setCurrentDateLabel] = useState('2025\uB144 9\uC6D4');
+  const [currentDateLabel, setCurrentDateLabel] = useState('2025년 9월');
   const { data: todos = [] } = useQuery<ScheduleTodo[]>({
     queryKey: ['todos', 'all'],
     queryFn: todoService.getAllTodos,
@@ -50,7 +50,7 @@ const CalendarScreen: React.FC = () => {
         calendarWidth={SCREEN_WIDTH}
         onVisibleMonthsChange={(date: DateData[]) => {
           if (date[0]) {
-            setCurrentDateLabel(`${date[0].year}\uB144 ${date[0].month}\uC6D4`);
+            setCurrentDateLabel(`${date[0].year}년 ${date[0].month}월`);
           }
         }}
         hideExtraDays={false}
@@ -70,10 +70,10 @@ const CalendarScreen: React.FC = () => {
               color: string;
             }
           > = {
-            '2025-03-01': { label: '\uC0BC\uC77C\uC808', color: '#d32f2f' },
-            '2025-03-03': { label: '\uC26C\uB294\uB0A0', color: '#1976d2' },
-            '2025-03-14': { label: '\uD558\uC774\uD2B8\uB370\uC774', color: '#e91e63' },
-            '2025-03-29': { label: '\uAC00\uC0C1\uC758\uB0A0', color: '#388e3c' },
+            '2025-03-01': { label: '삼일절', color: '#d32f2f' },
+            '2025-03-03': { label: '쉬는날', color: '#1976d2' },
+            '2025-03-14': { label: '화이트데이', color: '#e91e63' },
+            '2025-03-29': { label: '가상의날', color: '#388e3c' },
           };
 
           const holiday = dateStr ? holidayMap[dateStr] : undefined;
@@ -92,52 +92,49 @@ const CalendarScreen: React.FC = () => {
               onPress={() => date && handleDayPress(date.dateString)}
             >
               <View
-                style={{
-                  width: SCREEN_WIDTH / 7,
-                  height: SCREEN_HEIGHT / 6 - 10,
-                  justifyContent: 'flex-start',
-                  alignItems: 'center',
-                  borderColor: '#bebebe',
-                  borderStyle: 'solid',
-                  borderTopWidth: 1,
-                  paddingHorizontal: 2,
-                }}
+                style={[
+                  styles.dayCell,
+                  {
+                    width: SCREEN_WIDTH / 7,
+                    height: SCREEN_HEIGHT / 6 - 10,
+                  },
+                ]}
               >
-                <Text
-                  style={{
-                    fontSize: 16,
-                    color: textColor,
-                    opacity: state === 'disabled' ? 0.3 : 1,
-                    fontWeight: holiday ? 'bold' : 'normal',
-                    paddingTop: 3,
-                  }}
-                >
-                  {date?.day}
-                </Text>
-                {holiday && (
+                <View style={styles.dayHeader}>
                   <Text
-                    style={{
-                      fontSize: 10,
-                      color: holiday.color,
-                      marginTop: 2,
-                    }}
+                    style={[
+                      styles.dayNumber,
+                      {
+                        color: textColor,
+                        opacity: state === 'disabled' ? 0.3 : 1,
+                      },
+                      holiday ? styles.dayNumberHoliday : null,
+                    ]}
                   >
-                    {holiday.label}
+                    {date?.day}
                   </Text>
-                )}
-                {todosForDate.map(todo => (
-                  <Text
-                    key={`${todo.id}-${dateStr}`}
-                    numberOfLines={1}
-                    style={{
-                      marginTop: 2,
-                      fontSize: 10,
-                      color: '#424242',
-                    }}
-                  >
-                    - {todo.title}
-                  </Text>
-                ))}
+                  {holiday && (
+                    <Text style={[styles.holidayLabel, { color: holiday.color }]}>
+                      {holiday.label}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.todoList}>
+                  {todosForDate.map(todo => (
+                    <View
+                      key={`${todo.id}-${dateStr}`}
+                      style={[
+                        styles.todoCard,
+                        todo.isRepeating && styles.todoCardRepeat,
+                        todo.ddayId != null && styles.todoCardDDay,
+                      ]}
+                    >
+                      <Text numberOfLines={1} style={styles.todoCardText}>
+                        {todo.title}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             </TouchableOpacity>
           );
@@ -146,5 +143,60 @@ const CalendarScreen: React.FC = () => {
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  dayCell: {
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+    borderColor: '#bebebe',
+    borderStyle: 'solid',
+    borderTopWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  dayHeader: {
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  dayNumber: {
+    fontSize: 16,
+    fontWeight: '600',
+    paddingTop: 2,
+  },
+  dayNumberHoliday: {
+    fontWeight: '700',
+  },
+  holidayLabel: {
+    fontSize: 10,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  todoList: {
+    flexGrow: 1,
+    width: '100%',
+  },
+  todoCard: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    marginTop: 4,
+  },
+  todoCardRepeat: {
+    backgroundColor: '#e6f0ff',
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
+  todoCardDDay: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+  },
+  todoCardText: {
+    fontSize: 10,
+    color: '#1f2937',
+    fontWeight: '600',
+  },
+});
 
 export default CalendarScreen;

@@ -5,11 +5,21 @@ export type ScheduleTodo = {
   dueTime: string | null;
   isRepeating: boolean;
   repeatType: 'weekly' | 'monthly' | null;
-  repeatWeekdays: number[] | null;
+  repeatWeekdays: number[];
   repeatDayOfMonth: number | null;
   ddayId: number | null;
-  alarmId: number | null;
-  alarmSetId: number | null;
+  alarmId: string | null;
+  alarmSetId: string | null;
+  alarmTemplateId?: string | null;
+  alarmRelations: ScheduleTodoAlarmRelation[];
+};
+
+export type ScheduleTodoAlarmRelation = {
+  id: number | null;
+  todoId: number;
+  alarmId: string;
+  offsetMinutes: number;
+  orderIndex: number;
 };
 
 export type ScheduleTodoFormData = {
@@ -20,5 +30,7 @@ export type ScheduleTodoFormData = {
   repeatType: 'weekly' | 'monthly' | null;
   selectedWeekdays: number[];
   isDDay: boolean;
+  alarmOffsets: number[];
+  isAlarmEnabled: boolean;
+  alarmTemplateId?: string | null;
 };
-

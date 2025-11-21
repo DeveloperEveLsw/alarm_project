@@ -1,0 +1,319 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "18940acbc3b8560c096b511947d0d451",
+    "entities": [
+      {
+        "tableName": "Todo",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `title` TEXT NOT NULL, `description` TEXT, `due_date` TEXT, `due_time` TEXT, `is_repeating` INTEGER NOT NULL, `repeat_type` TEXT, `repeat_weekday` INTEGER NOT NULL, `repeat_day_of_month` INTEGER, `dday_id` INTEGER, `alarm_id` TEXT, `alarm_set_id` TEXT, `created_at` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "dueDate",
+            "columnName": "due_date",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "dueTime",
+            "columnName": "due_time",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isRepeating",
+            "columnName": "is_repeating",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatType",
+            "columnName": "repeat_type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "repeatWeekdayMask",
+            "columnName": "repeat_weekday",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatDayOfMonth",
+            "columnName": "repeat_day_of_month",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "ddayId",
+            "columnName": "dday_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "alarmId",
+            "columnName": "alarm_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "alarmSetId",
+            "columnName": "alarm_set_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Todo_due_date",
+            "unique": false,
+            "columnNames": [
+              "due_date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Todo_due_date` ON `${TABLE_NAME}` (`due_date`)"
+          },
+          {
+            "name": "index_Todo_dday_id",
+            "unique": false,
+            "columnNames": [
+              "dday_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Todo_dday_id` ON `${TABLE_NAME}` (`dday_id`)"
+          },
+          {
+            "name": "index_Todo_alarm_id",
+            "unique": false,
+            "columnNames": [
+              "alarm_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Todo_alarm_id` ON `${TABLE_NAME}` (`alarm_id`)"
+          },
+          {
+            "name": "index_Todo_alarm_set_id",
+            "unique": false,
+            "columnNames": [
+              "alarm_set_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Todo_alarm_set_id` ON `${TABLE_NAME}` (`alarm_set_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "Alarm",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `alarm_set_id` TEXT, `dday_id` INTEGER, `label` TEXT NOT NULL, `hour` INTEGER NOT NULL, `minute` INTEGER NOT NULL, `repeat_days` INTEGER NOT NULL, `skip_holidays` INTEGER NOT NULL, `sound` TEXT NOT NULL, `vibrate` INTEGER NOT NULL, `enabled` INTEGER NOT NULL, `next_trigger_at` INTEGER, `policy_mode` TEXT NOT NULL, `policy_payload` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alarmSetId",
+            "columnName": "alarm_set_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ddayId",
+            "columnName": "dday_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hour",
+            "columnName": "hour",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minute",
+            "columnName": "minute",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "repeatDaysMask",
+            "columnName": "repeat_days",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skipHolidays",
+            "columnName": "skip_holidays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sound",
+            "columnName": "sound",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vibrate",
+            "columnName": "vibrate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enabled",
+            "columnName": "enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextTriggerAt",
+            "columnName": "next_trigger_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "policyMode",
+            "columnName": "policy_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "policyPayload",
+            "columnName": "policy_payload",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Alarm_alarm_set_id",
+            "unique": false,
+            "columnNames": [
+              "alarm_set_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Alarm_alarm_set_id` ON `${TABLE_NAME}` (`alarm_set_id`)"
+          },
+          {
+            "name": "index_Alarm_dday_id",
+            "unique": false,
+            "columnNames": [
+              "dday_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Alarm_dday_id` ON `${TABLE_NAME}` (`dday_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "AlarmSet",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `label` TEXT NOT NULL, `default_sound` TEXT NOT NULL, `default_mode` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defaultSound",
+            "columnName": "default_sound",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defaultMode",
+            "columnName": "default_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "Dday",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `todo_id` INTEGER, `target_date` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "todoId",
+            "columnName": "todo_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "targetDate",
+            "columnName": "target_date",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Dday_todo_id",
+            "unique": false,
+            "columnNames": [
+              "todo_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Dday_todo_id` ON `${TABLE_NAME}` (`todo_id`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '18940acbc3b8560c096b511947d0d451')"
+    ]
+  }
+}

@@ -1,27 +1,33 @@
-import { StatusBar, useColorScheme } from 'react-native';
+﻿import React, { useEffect, useRef } from 'react';
+import { Platform, StatusBar, useColorScheme } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { NavigationContainer, RouteProp } from '@react-navigation/native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { NavigationContainer, RouteProp, createNavigationContainerRef } from '@react-navigation/native';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ko';
+
 import HomeScreen from './screens/HomeScreen';
 import CalendarScreen from './screens/CalendarScreen';
 import SubScreenTwo from './screens/SubScreenTwo';
 import ScheduleEditorScreen from './screens/ScheduleEditorScreen';
 import CustomHeader from './Components/CustomHeader';
 import TodoScreen from './screens/TodoScreen';
-import AlarmScreen from './screens/AlarmScreen';
 import DDayScreen from './screens/DDayScreen';
-import dayjs from 'dayjs';
-import 'dayjs/locale/ko';
-
+import AlarmPermissionsScreen from './screens/AlarmPermissionsScreen';
+import AlarmMathScreen from './screens/AlarmMathScreen';
+import AlarmShakeScreen from './screens/AlarmShakeScreen';
+import { AlarmEngine } from './alarm/engine';
+import { useAlarmPermissionsStore } from './stores/alarmPermissionsStore';
 import { RootStackParamList } from './types/navigation.types';
 
 dayjs.locale('ko');
 
 const queryClient = new QueryClient();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
-function MainTap() {
+function MainTab() {
   const Tab = createBottomTabNavigator();
 
   return (
@@ -40,7 +46,7 @@ function MainTap() {
     >
       <Tab.Screen name="알람" component={HomeScreen} />
       <Tab.Screen name="캘린더" component={CalendarScreen} />
-      <Tab.Screen name="설정" component={SubScreenTwo} />
+      <Tab.Screen name="일정" component={SubScreenTwo} />
     </Tab.Navigator>
   );
 }
@@ -52,17 +58,27 @@ type ScheduleEditorScreenOptionsProps = {
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
-
   const Stack = createNativeStackNavigator<RootStackParamList>();
+  const hydratePermissions = useAlarmPermissionsStore(state => state.hydratePermissions);
+  const hasHydratedPermissions = useRef(false);
+
+  useEffect(() => {
+    if (hasHydratedPermissions.current) return;
+    hasHydratedPermissions.current = true;
+    hydratePermissions().catch(error => {
+      console.warn('[Permissions] hydrate failed', error);
+    });
+  }, [hydratePermissions]);
 
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <SafeAreaView style={{ flex: 1 }}>
           <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-          <NavigationContainer>
+          <NavigationContainer ref={navigationRef}>
+            <AlarmQueryInvalidationListener />
             <Stack.Navigator>
-              <Stack.Screen name="Main" component={MainTap} options={{ headerShown: false }} />
+              <Stack.Screen name="Main" component={MainTab} options={{ headerShown: false }} />
               <Stack.Screen
                 name="ScheduleEditor"
                 component={ScheduleEditorScreen}
@@ -74,8 +90,18 @@ function App() {
                 })}
               />
               <Stack.Screen name="Todo" component={TodoScreen} options={{ title: '할 일' }} />
-              <Stack.Screen name="Alarm" component={AlarmScreen} options={{ title: '알람' }} />
               <Stack.Screen name="DDay" component={DDayScreen} options={{ title: 'D-DAY' }} />
+              <Stack.Screen name="AlarmPermissions" component={AlarmPermissionsScreen} options={{ title: '알람 권한 안내' }} />
+              <Stack.Screen
+                name="AlarmMath"
+                component={AlarmMathScreen}
+                options={{ headerShown: false, presentation: 'fullScreenModal' }}
+              />
+              <Stack.Screen
+                name="AlarmShake"
+                component={AlarmShakeScreen}
+                options={{ headerShown: false, presentation: 'fullScreenModal' }}
+              />
             </Stack.Navigator>
           </NavigationContainer>
         </SafeAreaView>
@@ -83,5 +109,34 @@ function App() {
     </QueryClientProvider>
   );
 }
+
+const AlarmQueryInvalidationListener: React.FC = () => {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const unsubscribe = AlarmEngine.addListener(event => {
+      switch (event.type) {
+        case 'SCHEDULED':
+        case 'SNOOZED':
+        case 'DISMISSED':
+        case 'ERROR':
+        case 'FIRED':
+        case 'SYNC':
+          queryClient.invalidateQueries({ queryKey: ['alarms'] }).catch(() => {});
+          break;
+        default:
+          break;
+      }
+    });
+
+    return unsubscribe;
+  }, [queryClient]);
+
+  return null;
+};
 
 export default App;
