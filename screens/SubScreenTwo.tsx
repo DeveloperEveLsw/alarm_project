@@ -15,6 +15,8 @@ const SubScreenTwo = () => {
     'TodoAlarmRelation',
     'AlarmSetTemplate',
     'AlarmTemplate',
+    'GeoFenceZone',
+    'GeoFenceHistory',
   ];
 
   const addLog = (log: string) => {
@@ -61,6 +63,8 @@ const SubScreenTwo = () => {
         TodoAlarmRelation: [],
         AlarmSetTemplate: [],
         AlarmTemplate: [],
+        GeoFenceZone: [],
+        GeoFenceHistory: [],
       });
     } catch (e) {
       addLog(`❌ Failed to drop tables: ${e}`);

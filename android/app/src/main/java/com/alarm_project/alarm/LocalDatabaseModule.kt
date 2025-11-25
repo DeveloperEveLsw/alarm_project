@@ -9,6 +9,8 @@ import com.alarm_project.alarm.data.local.entity.AlarmTemplateEntity
 import com.alarm_project.alarm.data.local.entity.DDayEntity
 import com.alarm_project.alarm.data.local.entity.TodoAlarmRelationEntity
 import com.alarm_project.alarm.data.local.entity.TodoEntity
+import com.alarm_project.alarm.data.local.entity.GeoFenceZoneEntity
+import com.alarm_project.alarm.data.local.entity.GeoFenceHistoryEntity
 import com.alarm_project.alarm.data.local.repository.AlarmLocalDataSource
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -156,6 +158,8 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
                         alarmTemplateMaps.pushMap(alarmTemplateToMap(entry))
                     }
                 }
+                val geoFenceZones = source.getGeoFenceZones()
+                val geoFenceHistories = source.getGeoFenceHistories()
 
                 val result = Arguments.createMap().apply {
                     putArray("Todo", toWritableArray(todos, ::todoToMap))
@@ -171,6 +175,8 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
                         toWritableArray(alarmSetTemplates, ::alarmSetTemplateToMap),
                     )
                     putArray("AlarmTemplate", alarmTemplateMaps)
+                    putArray("GeoFenceZone", toWritableArray(geoFenceZones, ::geoFenceZoneToMap))
+                    putArray("GeoFenceHistory", toWritableArray(geoFenceHistories, ::geoFenceHistoryToMap))
                 }
                 withContext(Dispatchers.Main) { promise.resolve(result) }
             } catch (error: Exception) {
@@ -542,6 +548,82 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
         }
     }
 
+    @ReactMethod
+    fun setAlarmGeofenceZone(
+        alarmId: String,
+        latitude: Double,
+        longitude: Double,
+        radius: Int,
+        placeName: String?,
+        promise: Promise,
+    ) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val source = dataSource()
+                val existing = source.getGeoFenceZoneByAlarm(alarmId)
+                val entity = GeoFenceZoneEntity(
+                    id = existing?.id ?: 0L,
+                    name = placeName,
+                    alarmId = alarmId,
+                    latitude = latitude,
+                    longitude = longitude,
+                    radiusMeters = radius,
+                    isActive = true,
+                )
+                val zoneId = if (existing == null) {
+                    source.insertGeoFenceZone(entity)
+                } else {
+                    source.updateGeoFenceZone(entity.copy(id = existing.id))
+                    existing.id ?: 0L
+                }
+                if (zoneId != 0L) {
+                    source.insertGeoFenceHistory(
+                        GeoFenceHistoryEntity(
+                            zoneId = zoneId,
+                            isInside = false,
+                        ),
+                    )
+                }
+                withContext(Dispatchers.Main) { promise.resolve(null) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { promise.reject("db_set_geofence_error", error) }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun removeAlarmGeofenceZone(alarmId: String, promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val source = dataSource()
+                val existing = source.getGeoFenceZoneByAlarm(alarmId)
+                if (existing != null) {
+                    source.clearHistoryForZone(existing.id)
+                    source.deleteGeoFenceZone(existing)
+                }
+                withContext(Dispatchers.Main) { promise.resolve(null) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { promise.reject("db_remove_geofence_error", error) }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun fetchGeoFenceZones(promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val zones = dataSource().getGeoFenceZones()
+                val result = toWritableArray(zones, ::geoFenceZoneToMap)
+                withContext(Dispatchers.Main) { promise.resolve(result) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { promise.reject("db_fetch_geofence_zones_error", error) }
+            }
+        }
+    }
+
     private suspend fun ensureRoomDatabase() {
         try {
             AlarmRoomDatabase.getInstance(appContext).openHelper.writableDatabase
@@ -635,6 +717,22 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
             putInt("offset_minutes", entity.offsetMinutes)
             putInt("order_index", entity.orderIndex)
         }
+
+    private fun geoFenceZoneToMap(entity: GeoFenceZoneEntity): WritableMap = Arguments.createMap().apply {
+        if (entity.id != null) putDouble("id", entity.id.toDouble()) else putNull("id")
+        if (entity.name != null) putString("name", entity.name) else putNull("name")
+        putString("alarm_id", entity.alarmId)
+        putDouble("latitude", entity.latitude)
+        putDouble("longitude", entity.longitude)
+        putInt("radius", entity.radiusMeters)
+        putBoolean("is_active", entity.isActive)
+    }
+
+    private fun geoFenceHistoryToMap(entity: GeoFenceHistoryEntity): WritableMap = Arguments.createMap().apply {
+        if (entity.id != null) putDouble("id", entity.id.toDouble()) else putNull("id")
+        putDouble("zone_id", entity.zoneId.toDouble())
+        putBoolean("state", entity.isInside)
+    }
 
     private suspend fun upsertTodoInternal(payload: TodoMutationPayload): TodoEntity {
         val database = AlarmRoomDatabase.getInstance(appContext)

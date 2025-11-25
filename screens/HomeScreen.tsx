@@ -52,6 +52,7 @@ const createDefaultDraft = (): AlarmDraft => {
     policyMode: "normal",
     policyPayload: null,
     alarmSetId: null,
+    geofenceLocation: null,
   };
 };
 
@@ -67,6 +68,7 @@ const toDraft = (alarm: AlarmItem): AlarmDraft => ({
   policyMode: alarm.policyMode ?? "normal",
   policyPayload: alarm.policyPayload ?? null,
   alarmSetId: alarm.alarmSetId ?? null,
+  geofenceLocation: alarm.geofenceLocation ?? null,
 });
 
 type EditorState =

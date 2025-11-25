@@ -1,5 +1,13 @@
 import type { AlarmMode } from "../alarm/contracts";
 
+export type AlarmLocationInfo = {
+  latitude: number;
+  longitude: number;
+  radius: number;
+  address?: string;
+  placeName?: string;
+};
+
 export type AlarmRepeatDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export type AlarmPolicyMode = AlarmMode;
@@ -17,6 +25,7 @@ export type AlarmBase = {
   policyMode?: AlarmPolicyMode;
   policyPayload?: AlarmPolicyPayload;
   alarmSetId?: string | null;
+  geofenceLocation?: AlarmLocationInfo | null;
 };
 
 export type AlarmDraft = AlarmBase & {

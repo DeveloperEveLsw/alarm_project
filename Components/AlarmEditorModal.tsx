@@ -13,6 +13,7 @@ import WheelPicker from "@quidone/react-native-wheel-picker";
 import type { AlarmDraft, AlarmRepeatDay } from "../types/alarm.types";
 import { computeNextTrigger } from "../services/alarm/alarmService";
 import { pickAlarmTone } from "../services/ringtonePicker";
+import LocationPicker from "./LocationPicker";
 
 const WEEK_LABELS: Record<AlarmRepeatDay, string> = {
   0: "일",
@@ -41,6 +42,7 @@ const buildInitialState = (draft: AlarmDraft) => ({
   hour: draft.hour,
   minute: draft.minute,
   alarmSetId: draft.alarmSetId ?? null,
+  geofenceLocation: draft.geofenceLocation ?? null,
 });
 
 const toDisplayHour = (hour: number): number => {
@@ -61,6 +63,7 @@ const to24Hour = (displayHour: number, isMorning: boolean): number => {
 const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel }) => {
   const [state, setState] = useState(() => buildInitialState(draft));
   const [isMorning, setIsMorning] = useState(() => toIsMorning(draft.hour));
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   useEffect(() => {
     setState(buildInitialState(draft));
@@ -101,6 +104,26 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
     setState(prev => ({ ...prev, sound: result }));
   }, [state.sound]);
 
+  const handleLocationSelected = useCallback((location: {
+    latitude: number;
+    longitude: number;
+    radius: number;
+    address: string;
+    placeName: string;
+  }) => {
+    setState(prev => ({
+      ...prev,
+      geofenceLocation: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        radius: location.radius,
+        address: location.address,
+        placeName: location.placeName,
+      },
+    }));
+    setShowLocationPicker(false);
+  }, []);
+
   const soundLabel = useMemo(() => {
     if (!state.sound) return "기본 알람음";
     if (state.sound.startsWith("content://") || state.sound.startsWith("file://")) {
@@ -108,6 +131,13 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
     }
     return state.sound;
   }, [state.sound]);
+
+  const locationSummary = useMemo(() => {
+    if (!state.geofenceLocation) return "위치를 선택하세요";
+    const { placeName, latitude, longitude } = state.geofenceLocation;
+    const coords = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    return placeName ? `${placeName} · ${coords}` : coords;
+  }, [state.geofenceLocation]);
 
   const nextTriggerLabel = useMemo(() => {
     const next = computeNextTrigger({
@@ -158,6 +188,7 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
       policyMode: draft.policyMode ?? "normal",
       policyPayload: draft.policyPayload ?? null,
       alarmSetId: state.alarmSetId ?? null,
+      geofenceLocation: state.geofenceLocation ?? null,
     };
     onSave(payload);
   }, [onSave, state]);
@@ -264,6 +295,25 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
                 onValueChange={value => setState(prev => ({ ...prev, vibrate: value }))}
               />
             </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>지오펜싱 위치</Text>
+              <Text style={styles.helperText}>해당 위치 반경 {state.geofenceLocation?.radius ?? 100}m</Text>
+              <Pressable style={styles.locationCard} onPress={() => setShowLocationPicker(true)}>
+                <Text style={styles.locationCardTitle}>
+                  {state.geofenceLocation?.placeName ?? "위치 선택"}
+                </Text>
+                <Text style={styles.locationCardValue}>{locationSummary}</Text>
+              </Pressable>
+              {state.geofenceLocation && (
+                <Pressable
+                  style={styles.locationResetButton}
+                  onPress={() => setState(prev => ({ ...prev, geofenceLocation: null }))}
+                >
+                  <Text style={styles.locationResetText}>위치 제거</Text>
+                </Pressable>
+              )}
+            </View>
           </ScrollView>
 
           <View style={styles.actions}>
@@ -276,6 +326,11 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
           </View>
         </View>
       </View>
+      <LocationPicker
+        visible={showLocationPicker}
+        onLocationSelect={handleLocationSelected}
+        onCancel={() => setShowLocationPicker(false)}
+      />
     </Modal>
   );
 };
@@ -415,6 +470,38 @@ const styles = StyleSheet.create({
   chevron: {
     fontSize: 20,
     color: "#9ca3af",
+  },
+  locationCard: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: "#f9fafb",
+  },
+  locationCardTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  locationCardValue: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "#4b5563",
+  },
+  locationResetButton: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#fee2e2",
+  },
+  locationResetText: {
+    fontSize: 12,
+    color: "#b91c1c",
+    fontWeight: "600",
   },
   actions: {
     marginTop: 20,

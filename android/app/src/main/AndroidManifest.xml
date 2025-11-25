@@ -57,6 +57,10 @@
         android:foregroundServiceType="mediaPlayback" />
 
       <receiver
+        android:name=".alarm.GeofencingBroadcastReceiver"
+        android:exported="false" />
+
+      <receiver
         android:name=".alarm.BootReceiver"
         android:enabled="true"
         android:exported="false">

@@ -6,6 +6,8 @@ import type {
   AlarmSetTemplateEntity,
   AlarmTemplateEntity,
   DdayEntity,
+  GeoFenceHistoryEntity,
+  GeoFenceZoneEntity,
   TodoAlarmRelationEntity,
   TodoEntity,
 } from '../../types/generated/roomEntities';
@@ -82,6 +84,8 @@ type DatabaseSnapshot = {
   TodoAlarmRelation: TodoAlarmRelationEntity[];
   AlarmSetTemplate: AlarmSetTemplateEntity[];
   AlarmTemplate: AlarmTemplateEntity[];
+  GeoFenceZone: GeoFenceZoneEntity[];
+  GeoFenceHistory: GeoFenceHistoryEntity[];
 };
 
 type LocalDatabaseModule = {
@@ -110,6 +114,15 @@ type LocalDatabaseModule = {
   fetchAlarmSetTemplates(): Promise<AlarmSetTemplateEntity[]>;
   fetchAlarmTemplates(templateId: string): Promise<AlarmTemplateEntity[]>;
   deleteAlarmTemplate(templateId: string): Promise<void>;
+  setAlarmGeofenceZone(
+    alarmId: string,
+    latitude: number,
+    longitude: number,
+    radius: number,
+    placeName?: string | null,
+  ): Promise<void>;
+  removeAlarmGeofenceZone(alarmId: string): Promise<void>;
+  fetchGeoFenceZones(): Promise<GeoFenceZoneEntity[]>;
 };
 
 const { LocalDatabase } = NativeModules as { LocalDatabase: LocalDatabaseModule | undefined };
@@ -161,6 +174,13 @@ export const localDatabase = {
     LocalDatabase.deleteAlarmTemplate(templateId),
   clearAllTables: (): Promise<void> => LocalDatabase.clearAllTables(),
   fetchSnapshot: (): Promise<DatabaseSnapshot> => LocalDatabase.fetchSnapshot(),
+  setAlarmGeofenceZone: (
+    alarmId: string,
+    location: { latitude: number; longitude: number; radius: number; placeName?: string | null },
+  ): Promise<void> =>
+    LocalDatabase.setAlarmGeofenceZone(alarmId, location.latitude, location.longitude, location.radius, location.placeName ?? null),
+  removeAlarmGeofenceZone: (alarmId: string): Promise<void> => LocalDatabase.removeAlarmGeofenceZone(alarmId),
+  fetchGeoFenceZones: (): Promise<GeoFenceZoneEntity[]> => LocalDatabase.fetchGeoFenceZones(),
 };
 
 export const databaseDebug = {

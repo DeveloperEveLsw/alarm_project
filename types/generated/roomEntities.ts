@@ -81,3 +81,20 @@ export interface AlarmTemplateEntity {
   policy_mode: string;
   policy_payload: string | null;
 }
+
+// Source: android/app/schemas/com.alarm_project.alarm.data.local.AlarmRoomDatabase/5.json
+export interface GeoFenceZoneEntity {
+  id: number;
+  name: string | null;
+  latitude: number;
+  longitude: number;
+  radius: number;
+  is_active: boolean;
+}
+
+// Source: android/app/schemas/com.alarm_project.alarm.data.local.AlarmRoomDatabase/5.json
+export interface GeoFenceHistoryEntity {
+  id: number;
+  zone_id: number;
+  state: boolean;
+}
