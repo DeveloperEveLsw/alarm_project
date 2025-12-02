@@ -33,7 +33,7 @@ export type AlarmTemplateEntryDetail = {
 const DEFAULT_MODE: AlarmPolicyMode = 'normal';
 
 const normalizeMode = (value: string | null | undefined): AlarmPolicyMode => {
-  if (value === 'math' || value === 'shake' || value === 'normal') {
+  if (value === 'math' || value === 'shake' || value === 'puzzle' || value === 'normal') {
     return value;
   }
   return DEFAULT_MODE;

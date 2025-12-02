@@ -58,8 +58,13 @@ class AlarmService : Service() {
 
         val lockStateSnapshot = ContextSnapshotBuilder(this).getLockStateSnapshot()
         lastLockState = lockStateSnapshot
-        val requiresChallenge = requiresChallenge(spec)
-        val shouldLaunchFullScreen = requiresChallenge || shouldForceFullScreen(lockStateSnapshot)
+        val requiresChallenge = when (spec.policy.mode) {
+            AlarmMode.MATH,
+            AlarmMode.SHAKE,
+            AlarmMode.PUZZLE -> true
+            else -> false
+        }
+        val shouldLaunchFullScreen = shouldForceFullScreen(lockStateSnapshot) || requiresChallenge
 
         startRinging(spec, shouldLaunchFullScreen, null, lockStateSnapshot)
 
@@ -217,18 +222,20 @@ class AlarmService : Service() {
     }
 
     private fun buildAlarmActivityIntent(spec: AlarmSpec): Intent {
-        val requiresChallenge = requiresChallenge(spec)
-        val target = if (requiresChallenge) AlarmChallengeActivity::class.java else AlarmActivity::class.java
+        val target = when (spec.policy.mode) {
+            AlarmMode.MATH,
+            AlarmMode.SHAKE,
+            AlarmMode.PUZZLE -> AlarmChallengeActivity::class.java
+            else -> AlarmActivity::class.java
+        }
+        val policyPayload = spec.metadata?.get("policy_payload") ?: spec.payload?.get("policy_payload")
         return Intent(this, target).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("alarm_id", spec.id)
-            if (requiresChallenge) {
-                putExtra("policy_mode", spec.policy.mode.name.lowercase(Locale.US))
-                val policyPayload = spec.metadata?.get("policy_payload") ?: spec.payload?.get("policy_payload")
-                policyPayload?.let { putExtra("policy_payload", it) }
-                spec.policy.snoozeMinutes?.let { minutes ->
-                    putIntegerArrayListExtra("policy_snooze_minutes", ArrayList(minutes))
-                }
+            putExtra("policy_mode", spec.policy.mode.name.lowercase(Locale.US))
+            policyPayload?.let { putExtra("policy_payload", it) }
+            spec.policy.snoozeMinutes?.let { minutes ->
+                putIntegerArrayListExtra("policy_snooze_minutes", ArrayList(minutes))
             }
         }
     }
@@ -239,20 +246,6 @@ class AlarmService : Service() {
         if (resolveInfo != null) {
             startActivity(intent)
             Log.d("AlarmService", "startActivity!!")
-        }
-    }
-
-    private fun requiresChallenge(spec: AlarmSpec): Boolean {
-        return when (spec.policy.mode) {
-            AlarmMode.MATH,
-            AlarmMode.SHAKE,
-            AlarmMode.PUZZLE -> true
-            else -> {
-                val metaMode = spec.metadata?.get("policyMode")
-                metaMode.equals("math", ignoreCase = true) ||
-                    metaMode.equals("shake", ignoreCase = true) ||
-                    metaMode.equals("puzzle", ignoreCase = true)
-            }
         }
     }
 

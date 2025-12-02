@@ -80,7 +80,6 @@ const buildInitialState = (draft: AlarmDraft) => ({
   minute: draft.minute,
   policyMode: draft.policyMode ?? "normal",
   policyPayload: draft.policyPayload ?? null,
-  alarmSetId: draft.alarmSetId ?? null,
 });
 
 const defaultMathFormState = (): MathMissionFormState => ({
@@ -495,10 +494,9 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
       vibrate: state.vibrate,
       policyMode: missionMode,
       policyPayload: missionPayload,
-      alarmSetId: state.alarmSetId ?? null,
     };
     onSave(payload);
-  }, [mathForm, onSave, puzzleForm, shakeForm, state]);
+  }, [mathForm, onSave, shakeForm, state]);
 
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onCancel}>

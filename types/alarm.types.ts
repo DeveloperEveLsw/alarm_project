@@ -1,10 +1,11 @@
 import type { AlarmMode } from "../alarm/contracts";
+import type { PuzzlePolicyPayload } from "./puzzle.types";
 
 export type AlarmRepeatDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export type AlarmPolicyMode = AlarmMode;
 
-export type AlarmPolicyPayload = Record<string, unknown> | null | undefined;
+export type AlarmPolicyPayload = Record<string, unknown> | PuzzlePolicyPayload | null | undefined;
 
 export type AlarmBase = {
   hour: number;
