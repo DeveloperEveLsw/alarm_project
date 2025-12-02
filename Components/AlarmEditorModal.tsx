@@ -14,6 +14,8 @@ import type { AlarmDraft, AlarmRepeatDay } from "../types/alarm.types";
 import { computeNextTrigger } from "../services/alarm/alarmService";
 import { pickAlarmTone } from "../services/ringtonePicker";
 import LocationPicker from "./LocationPicker";
+import CategorySelector from "./CategorySelector";
+import type { Category } from "../types/category.types";
 
 const WEEK_LABELS: Record<AlarmRepeatDay, string> = {
   0: "일",
@@ -30,6 +32,8 @@ type Props = {
   draft: AlarmDraft;
   onSave: (value: AlarmDraft) => void;
   onCancel: () => void;
+  categories: Category[];
+  onCreateCategory: (name: string) => Promise<Category>;
 };
 
 const buildInitialState = (draft: AlarmDraft) => ({
@@ -43,6 +47,7 @@ const buildInitialState = (draft: AlarmDraft) => ({
   minute: draft.minute,
   alarmSetId: draft.alarmSetId ?? null,
   geofenceLocation: draft.geofenceLocation ?? null,
+  categoryId: draft.categoryId ?? null,
 });
 
 const toDisplayHour = (hour: number): number => {
@@ -60,7 +65,14 @@ const to24Hour = (displayHour: number, isMorning: boolean): number => {
   return normalized === 12 ? 12 : normalized + 12;
 };
 
-const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel }) => {
+const AlarmEditorModal: React.FC<Props> = ({
+  visible,
+  draft,
+  onSave,
+  onCancel,
+  categories,
+  onCreateCategory,
+}) => {
   const [state, setState] = useState(() => buildInitialState(draft));
   const [isMorning, setIsMorning] = useState(() => toIsMorning(draft.hour));
   const [showLocationPicker, setShowLocationPicker] = useState(false);
@@ -182,6 +194,13 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
     setState(prev => ({ ...prev, minute }));
   }, []);
 
+  const handleCategoryChange = useCallback((categoryId: number | null) => {
+    setState(prev => ({
+      ...prev,
+      categoryId,
+    }));
+  }, []);
+
   const handleSave = useCallback(() => {
     const trimmedLabel = state.label.trim();
     const payload: AlarmDraft = {
@@ -197,6 +216,7 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
       policyPayload: draft.policyPayload ?? null,
       alarmSetId: state.alarmSetId ?? null,
       geofenceLocation: state.geofenceLocation ?? null,
+      categoryId: state.categoryId ?? null,
     };
     onSave(payload);
   }, [onSave, state]);
@@ -250,6 +270,16 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
                 onChangeText={text => setState(prev => ({ ...prev, label: text }))}
                 placeholder="알람 이름"
                 style={styles.textInput}
+              />
+            </View>
+
+            <View style={styles.section}>
+              <CategorySelector
+                categories={categories}
+                value={state.categoryId ?? null}
+                onChange={handleCategoryChange}
+                onCreateCategory={onCreateCategory}
+                label="카테고리"
               />
             </View>
 

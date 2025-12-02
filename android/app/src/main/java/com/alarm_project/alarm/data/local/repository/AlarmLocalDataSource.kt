@@ -6,6 +6,7 @@ import com.alarm_project.alarm.data.local.entity.AlarmEntity
 import com.alarm_project.alarm.data.local.entity.AlarmSetEntity
 import com.alarm_project.alarm.data.local.entity.AlarmSetTemplateEntity
 import com.alarm_project.alarm.data.local.entity.AlarmTemplateEntity
+import com.alarm_project.alarm.data.local.entity.CategoryEntity
 import com.alarm_project.alarm.data.local.entity.DDayEntity
 import com.alarm_project.alarm.data.local.entity.GeoFenceHistoryEntity
 import com.alarm_project.alarm.data.local.entity.GeoFenceZoneEntity
@@ -33,6 +34,7 @@ class AlarmLocalDataSource(
     private val alarmTemplateDao = database.alarmTemplateDao()
     private val geoFenceZoneDao = database.geoFenceZoneDao()
     private val geoFenceHistoryDao = database.geoFenceHistoryDao()
+    private val categoryDao = database.categoryDao()
 
     fun observeTodos(): Flow<List<TodoEntity>> = todoDao.observeAll()
     fun observeAlarms(): Flow<List<AlarmEntity>> = alarmDao.observeAll()
@@ -45,6 +47,7 @@ class AlarmLocalDataSource(
     fun observeAlarmTemplates(templateId: String): Flow<List<AlarmTemplateEntity>> =
         alarmTemplateDao.observeByTemplateId(templateId)
     fun observeGeoFenceZones(): Flow<List<GeoFenceZoneEntity>> = geoFenceZoneDao.observeAll()
+    fun observeCategories(): Flow<List<CategoryEntity>> = categoryDao.observeAll()
 
     suspend fun getTodos(): List<TodoEntity> = withContext(ioDispatcher) { todoDao.getAll() }
 
@@ -83,6 +86,19 @@ class AlarmLocalDataSource(
 
     suspend fun getGeoFenceHistories(): List<GeoFenceHistoryEntity> =
         withContext(ioDispatcher) { geoFenceHistoryDao.getAll() }
+
+    suspend fun getCategories(): List<CategoryEntity> = withContext(ioDispatcher) { categoryDao.getAll() }
+
+    suspend fun findCategoryById(id: Long): CategoryEntity? =
+        withContext(ioDispatcher) { categoryDao.findById(id) }
+
+    suspend fun upsertCategory(entity: CategoryEntity): Long = withContext(ioDispatcher) {
+        categoryDao.upsert(entity)
+    }
+
+    suspend fun deleteCategoryById(id: Long) = withContext(ioDispatcher) {
+        categoryDao.deleteById(id)
+    }
 
     suspend fun upsertTodo(entity: TodoEntity): Long = withContext(ioDispatcher) {
         todoDao.upsert(entity)

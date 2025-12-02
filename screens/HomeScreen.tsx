@@ -1,10 +1,15 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
+  Switch,
   Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import dayjs from "dayjs";
@@ -28,9 +33,11 @@ import {
   getAlarmTemplateEntries,
   deleteAlarmTemplate,
 } from "../services/alarm/alarmSetService";
+import { categoryService } from "../services/categoryService";
 import { useAlarmPermissionsStore } from "../stores/alarmPermissionsStore";
 import type { AlarmPermissionState } from "../stores/alarmPermissionsStore";
 import type { AlarmDraft, AlarmItem } from "../types/alarm.types";
+import type { Category } from "../types/category.types";
 
 const DEFAULT_SOUND = "Arcade";
 
@@ -38,6 +45,8 @@ const selectHasExactAlarm = (state: AlarmPermissionState) => state.hasExactAlarm
 const selectHasPostNotifications = (state: AlarmPermissionState) => state.hasPostNotifications;
 const selectHasVibrate = (state: AlarmPermissionState) => state.hasVibrate;
 const selectHasOverlay = (state: AlarmPermissionState) => state.hasOverlay;
+
+type CategoryVisibilityMap = Record<number, boolean>;
 
 const createDefaultDraft = (): AlarmDraft => {
   const base = dayjs().add(1, "minute");
@@ -53,6 +62,7 @@ const createDefaultDraft = (): AlarmDraft => {
     policyPayload: null,
     alarmSetId: null,
     geofenceLocation: null,
+    categoryId: null,
   };
 };
 
@@ -69,6 +79,7 @@ const toDraft = (alarm: AlarmItem): AlarmDraft => ({
   policyPayload: alarm.policyPayload ?? null,
   alarmSetId: alarm.alarmSetId ?? null,
   geofenceLocation: alarm.geofenceLocation ?? null,
+  categoryId: alarm.categoryId ?? null,
 });
 
 type EditorState =
@@ -92,7 +103,33 @@ const HomeScreen: React.FC = () => {
   const [isFabExpanded, setIsFabExpanded] = useState(false);
   const [isTemplateModalVisible, setIsTemplateModalVisible] = useState(false);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
+  const [categoryVisibility, setCategoryVisibility] = useState<CategoryVisibilityMap>({});
   const queryClient = useQueryClient();
+
+  const categoriesQuery = useQuery<Category[]>({
+    queryKey: ["categories"],
+    queryFn: categoryService.getCategories,
+  });
+  const categories = categoriesQuery.data ?? [];
+
+  const createCategoryMutation = useMutation({
+    mutationFn: (name: string) => categoryService.createCategory(name),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+    },
+  });
+
+  const handleCreateCategory = useCallback(
+    (name: string) => createCategoryMutation.mutateAsync(name),
+    [createCategoryMutation],
+  );
+
+  const [isMenuVisible, setMenuVisible] = useState(false);
+  const menuAnimation = useRef(new Animated.Value(0)).current;
+  const menuTranslateX = menuAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [280, 0],
+  });
 
   const alarmsQuery = useQuery<AlarmItem[]>({
     queryKey: ["alarms"],
@@ -109,6 +146,18 @@ const HomeScreen: React.FC = () => {
   const selectionCount = selectedIds.length;
   const hasAlarms = alarms.length > 0;
   const isAllSelected = hasAlarms && selectionCount === alarms.length;
+  const filteredAlarms = useMemo(
+    () =>
+      alarms.filter(alarm => {
+        if (alarm.categoryId == null) {
+          return true;
+        }
+        const visible = categoryVisibility[alarm.categoryId];
+        return visible !== false;
+      }),
+    [alarms, categoryVisibility],
+  );
+  const hasVisibleAlarms = filteredAlarms.length > 0;
 
   const hasExactAlarm = useAlarmPermissionsStore(selectHasExactAlarm);
   const hasPostNotifications = useAlarmPermissionsStore(selectHasPostNotifications);
@@ -134,6 +183,28 @@ const HomeScreen: React.FC = () => {
       setIsFabExpanded(false);
     }
   }, [isSelectionMode]);
+
+  useEffect(() => {
+    setCategoryVisibility(prev => {
+      const next: CategoryVisibilityMap = { ...prev };
+      let changed = false;
+      const ids = new Set(categories.map(category => category.id));
+      categories.forEach(category => {
+        if (typeof next[category.id] === "undefined") {
+          next[category.id] = true;
+          changed = true;
+        }
+      });
+      Object.keys(next).forEach(key => {
+        const id = Number(key);
+        if (!ids.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+      return changed ? { ...next } : next;
+    });
+  }, [categories]);
 
   const ensureCorePermissions = useCallback(async () => {
     if (!hasPostNotifications) {
@@ -513,6 +584,46 @@ const HomeScreen: React.FC = () => {
 
   const keyExtractor = useCallback((item: AlarmItem) => item.id, []);
 
+  const handleCategoryToggle = useCallback((categoryId: number, value: boolean) => {
+    setCategoryVisibility(prev => ({
+      ...prev,
+      [categoryId]: value,
+    }));
+  }, []);
+
+  const handleOpenMenu = useCallback(() => {
+    setMenuVisible(true);
+    Animated.timing(menuAnimation, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [menuAnimation]);
+
+  const handleCloseMenu = useCallback(() => {
+    Animated.timing(menuAnimation, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setMenuVisible(false));
+  }, [menuAnimation]);
+
+  const handleBackup = useCallback(() => {
+    console.log('[HomeScreen] backup initiated');
+  }, []);
+
+  const handleRestore = useCallback(() => {
+    console.log('[HomeScreen] restore initiated');
+  }, []);
+
+  const userProfile = useMemo(
+    () => ({
+      name: '사용자 이름',
+      email: 'user@example.com',
+    }),
+    [],
+  );
+
   const editorVisible = Boolean(editorState);
   const draftForEditor = useMemo(
     () => (editorState ? editorState.draft : createDefaultDraft()),
@@ -589,11 +700,23 @@ const HomeScreen: React.FC = () => {
                 <Text style={styles.headerTitle}>알람</Text>
                 <Text style={styles.headerSubtitle}>기본 시계 앱처럼 빠르게 관리하세요</Text>
               </View>
-              {hasAlarms ? (
-                <Pressable onPress={() => enterSelectionMode()} accessibilityLabel="알람 편집">
-                  <Text style={styles.editButton}>편집</Text>
-                </Pressable>
-              ) : null}
+              <View style={styles.headerActions}>
+                {hasAlarms ? (
+                  <Pressable onPress={() => enterSelectionMode()} accessibilityLabel="알람 편집">
+                    <Text style={styles.editButton}>편집</Text>
+                  </Pressable>
+                ) : null}
+                <TouchableOpacity
+                  style={styles.menuButton}
+                  onPress={handleOpenMenu}
+                  accessibilityLabel="메뉴 열기"
+                  activeOpacity={0.7}
+                >
+                  {[0, 1, 2].map(index => (
+                    <View key={index} style={styles.menuButtonLine} />
+                  ))}
+                </TouchableOpacity>
+              </View>
             </View>
             {showPermissionWarning ? (
               <View style={styles.permissionBanner}>
@@ -613,18 +736,24 @@ const HomeScreen: React.FC = () => {
           <Text style={styles.emptyTitle}>알람을 불러오는 중입니다</Text>
           <Text style={styles.emptySubtitle}>잠시만 기다려 주세요.</Text>
         </View>
-      ) : alarms.length === 0 ? (
+      ) : !hasAlarms ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyEmoji}>⏰</Text>
           <Text style={styles.emptyTitle}>등록된 알람이 없습니다</Text>
           <Text style={styles.emptySubtitle}>아래 + 버튼으로 알람을 추가하세요</Text>
         </View>
+      ) : !hasVisibleAlarms ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyEmoji}>🙈</Text>
+          <Text style={styles.emptyTitle}>표시할 알람이 없습니다</Text>
+          <Text style={styles.emptySubtitle}>선택한 카테고리에 알람이 없어요.</Text>
+        </View>
       ) : (
         <FlatList
-          data={alarms}
+          data={filteredAlarms}
           keyExtractor={keyExtractor}
           renderItem={renderAlarm}
-          extraData={{ isSelectionMode, selectedIds }}
+          extraData={{ isSelectionMode, selectedIds, categoryVisibility }}
           contentContainerStyle={styles.listContent}
         />
       )}
@@ -667,11 +796,62 @@ const HomeScreen: React.FC = () => {
         <Text style={styles.fabLabel}>{isFabExpanded ? "×" : "+"}</Text>
       </Pressable>
 
+      {isMenuVisible && (
+        <View style={styles.menuOverlay} pointerEvents="box-none">
+          <TouchableWithoutFeedback onPress={handleCloseMenu}>
+            <Animated.View style={[styles.menuBackdrop, { opacity: menuAnimation }]} />
+          </TouchableWithoutFeedback>
+          <Animated.View
+            style={[styles.menuContainer, { transform: [{ translateX: menuTranslateX }] }]}
+          >
+            <ScrollView>
+              <View style={styles.menuHeader}>
+                <Text style={styles.menuHeaderLabel}>{userProfile.name}</Text>
+                <Text style={styles.menuHeaderSubLabel}>{userProfile.email}</Text>
+              </View>
+              <View style={styles.menuActions}>
+                <TouchableOpacity style={styles.menuActionButton} onPress={handleBackup}>
+                  <Text style={styles.menuActionText}>백업하기</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuActionButton} onPress={handleRestore}>
+                  <Text style={styles.menuActionText}>백업 가져오기</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.menuSection}>
+                <Text style={styles.menuSectionTitle}>카테고리 필터</Text>
+                {categories.length === 0 ? (
+                  <Text style={styles.menuEmptyText}>카테고리를 추가하면 여기에서 필터링할 수 있어요.</Text>
+                ) : (
+                  categories.map(category => (
+                    <View key={category.id} style={styles.categoryRow}>
+                      <View style={styles.categoryLabelContainer}>
+                        <View
+                          style={[styles.categoryDot, { backgroundColor: category.color }]}
+                        />
+                        <Text style={styles.categoryLabel}>{category.name}</Text>
+                      </View>
+                      <Switch
+                        value={categoryVisibility[category.id] ?? true}
+                        onValueChange={value => handleCategoryToggle(category.id, value)}
+                        trackColor={{ true: "#10B981", false: "#9CA3AF" }}
+                        thumbColor="#ffffff"
+                      />
+                    </View>
+                  ))
+                )}
+              </View>
+            </ScrollView>
+          </Animated.View>
+        </View>
+      )}
+
       <AlarmEditorModal
         visible={editorVisible}
         draft={draftForEditor}
         onCancel={closeEditor}
         onSave={handleSaveDraft}
+        categories={categories}
+        onCreateCategory={handleCreateCategory}
       />
       <AlarmSetCreateModal
         visible={isSetModalVisible}
@@ -719,10 +899,118 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#6b7280",
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   editButton: {
     fontSize: 16,
     fontWeight: "600",
     color: "#2563eb",
+    marginRight: 12,
+  },
+  menuButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuButtonLine: {
+    width: 16,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: "#111827",
+    marginVertical: 2,
+  },
+  menuOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  menuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  menuContainer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: 280,
+    backgroundColor: "#F9FAFB",
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: -4, height: 0 },
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  menuHeader: {
+    marginBottom: 16,
+  },
+  menuHeaderLabel: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  menuHeaderSubLabel: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  menuActions: {
+    gap: 12,
+  },
+  menuActionButton: {
+    backgroundColor: "#E5E7EB",
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  menuActionText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  menuSection: {
+    marginTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    paddingTop: 16,
+  },
+  menuSectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 12,
+  },
+  menuEmptyText: {
+    fontSize: 13,
+    color: "#6b7280",
+  },
+  categoryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+  },
+  categoryLabelContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  categoryDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  categoryLabel: {
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "500",
   },
   permissionBanner: {
     marginTop: 16,

@@ -110,11 +110,12 @@ const mapFieldToTs = (field, propertyTypes) => {
   return `${field.columnName}: ${tsType}`;
 };
 
-const buildEntityInterface = (entity, propertyTypes) => {
+const buildEntityInterface = (entity, propertyTypes, explicitName) => {
   const lines = entity.fields
     .map(field => `  ${mapFieldToTs(field, propertyTypes)};`)
     .join('\n');
-  return `// Source: ${entity.source}\nexport interface ${entity.tableName}Entity {\n${lines}\n}`;
+  const interfaceName = explicitName ?? `${entity.tableName}Entity`;
+  return `// Source: ${entity.source}\nexport interface ${interfaceName} {\n${lines}\n}`;
 };
 
 const parseEntityFile = async filePath => {
@@ -155,10 +156,13 @@ const parseEntityFile = async filePath => {
     }
   }
 
-  return { tableName, columns };
+  const entityNameMatch = normalized.match(/data\s+class\s+(\w+)/);
+  const entityName = entityNameMatch ? entityNameMatch[1] : null;
+
+  return { tableName, columns, entityName };
 };
 
-const readEntityColumnTypes = async () => {
+const readEntityMetadata = async () => {
   let entries;
   try {
     entries = await fs.readdir(ENTITY_SRC_DIR, { withFileTypes: true });
@@ -169,18 +173,21 @@ const readEntityColumnTypes = async () => {
     throw error;
   }
 
-  const columnTypes = new Map();
+  const entityMeta = new Map();
 
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.kt')) continue;
     const filePath = path.join(ENTITY_SRC_DIR, entry.name);
     const parsed = await parseEntityFile(filePath);
     if (parsed) {
-      columnTypes.set(parsed.tableName, parsed.columns);
+      entityMeta.set(parsed.tableName, {
+        columns: parsed.columns,
+        entityName: parsed.entityName,
+      });
     }
   }
 
-  return columnTypes;
+  return entityMeta;
 };
 
 const splitTopLevel = (input, separator) => {
@@ -326,9 +333,15 @@ const generateEntityTypes = async () => {
 
   const interfaces = [];
   const seenTables = new Set();
-  const entityColumnTypes = await readEntityColumnTypes();
+  const entityMetadata = await readEntityMetadata();
 
-  for (const { path: filePath, json } of files) {
+  const sortedFiles = files.sort((a, b) => {
+    const versionA = Number(a.json?.database?.version ?? 0);
+    const versionB = Number(b.json?.database?.version ?? 0);
+    return versionB - versionA;
+  });
+
+  for (const { path: filePath, json } of sortedFiles) {
     if (!json?.database?.entities) continue;
     for (const entity of json.database.entities) {
       if (!entity?.tableName || !Array.isArray(entity.fields)) continue;
@@ -337,9 +350,12 @@ const generateEntityTypes = async () => {
       const enrichedEntity = {
         ...entity,
         source: path.relative(ROOT, filePath).replace(/\\/g, '/'),
+        schemaVersion: Number(json.database.version ?? 0),
       };
-      const columnTypes = entityColumnTypes.get(entity.tableName) ?? {};
-      interfaces.push(buildEntityInterface(enrichedEntity, columnTypes));
+      const metadata = entityMetadata.get(entity.tableName);
+      const columnTypes = metadata?.columns ?? {};
+      const interfaceName = metadata?.entityName;
+      interfaces.push(buildEntityInterface(enrichedEntity, columnTypes, interfaceName));
     }
   }
 

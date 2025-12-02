@@ -5,7 +5,8 @@ import type {
   AlarmSetEntity,
   AlarmSetTemplateEntity,
   AlarmTemplateEntity,
-  DdayEntity,
+  CategoryEntity,
+  DDayEntity,
   GeoFenceHistoryEntity,
   GeoFenceZoneEntity,
   TodoAlarmRelationEntity,
@@ -18,6 +19,8 @@ type TodoAlarmRelationNative = TodoAlarmRelationEntity;
 type AlarmSetNative = AlarmSetEntity;
 type AlarmTemplateNative = AlarmTemplateEntity;
 type AlarmSetTemplateNative = AlarmSetTemplateEntity;
+type CategoryNative = CategoryEntity;
+type GeoFenceZoneNative = GeoFenceZoneEntity;
 
 type TodoMutationPayload = {
   id?: number | null;
@@ -32,6 +35,7 @@ type TodoMutationPayload = {
   alarmSetId: string | null;
   ddayId: number | null;
   isDDay: boolean;
+  categoryId: number | null;
 };
 
 type TodoAlarmRelationMutationPayload = {
@@ -74,11 +78,12 @@ type AlarmPersistPayload = {
   policyMode?: string | null;
   policyPayload?: string | null;
   nextTriggerAt?: number | null;
+  categoryId?: number | null;
 };
 
 type DatabaseSnapshot = {
   Todo: TodoEntity[];
-  Dday: DdayEntity[];
+  Dday: DDayEntity[];
   AlarmSet: AlarmSetEntity[];
   Alarm: AlarmEntity[];
   TodoAlarmRelation: TodoAlarmRelationEntity[];
@@ -123,6 +128,8 @@ type LocalDatabaseModule = {
   ): Promise<void>;
   removeAlarmGeofenceZone(alarmId: string): Promise<void>;
   fetchGeoFenceZones(): Promise<GeoFenceZoneEntity[]>;
+  fetchCategories(): Promise<CategoryEntity[]>;
+  createCategory(name: string, color: string): Promise<CategoryEntity>;
 };
 
 const { LocalDatabase } = NativeModules as { LocalDatabase: LocalDatabaseModule | undefined };
@@ -181,6 +188,9 @@ export const localDatabase = {
     LocalDatabase.setAlarmGeofenceZone(alarmId, location.latitude, location.longitude, location.radius, location.placeName ?? null),
   removeAlarmGeofenceZone: (alarmId: string): Promise<void> => LocalDatabase.removeAlarmGeofenceZone(alarmId),
   fetchGeoFenceZones: (): Promise<GeoFenceZoneEntity[]> => LocalDatabase.fetchGeoFenceZones(),
+  fetchCategories: (): Promise<CategoryEntity[]> => LocalDatabase.fetchCategories(),
+  createCategory: (name: string, color: string): Promise<CategoryEntity> =>
+    LocalDatabase.createCategory(name, color),
 };
 
 export const databaseDebug = {
@@ -202,4 +212,7 @@ export type {
   AlarmSetTemplateNative,
   AlarmTemplateNative,
   AlarmTemplateEntryPayload,
+  CategoryNative,
+  GeoFenceZoneNative,
+  GeoFenceZoneEntity,
 };

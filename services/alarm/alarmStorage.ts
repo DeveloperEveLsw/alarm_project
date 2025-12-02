@@ -42,6 +42,7 @@ const mapNativeToAlarm = (row: AlarmNative, zone?: GeoFenceZoneEntity): AlarmIte
     vibrate: row.vibrate,
     policyMode: parsePolicyMode(row.policy_mode),
     policyPayload: parsePolicyPayload(row.policy_payload),
+    categoryId: row.category_id != null ? Number(row.category_id) : null,
   } as const;
 
   const enabled = row.enabled;
@@ -130,6 +131,7 @@ export type PersistableAlarm = {
   policyMode?: AlarmPolicyMode;
   policyPayload?: AlarmPolicyPayload;
   nextTriggerAt?: number | null;
+  categoryId?: number | null;
 };
 
 const toPersistPayload = (alarm: PersistableAlarm): AlarmPersistPayload => ({
@@ -147,6 +149,7 @@ const toPersistPayload = (alarm: PersistableAlarm): AlarmPersistPayload => ({
   policyMode: alarm.policyMode ?? DEFAULT_POLICY_MODE,
   policyPayload: serializePolicyPayload(alarm.policyPayload ?? null),
   nextTriggerAt: nextTriggerForPersist(alarm),
+  categoryId: alarm.categoryId ?? null,
 });
 
 export const insertAlarm = async (alarm: PersistableAlarm): Promise<void> => {

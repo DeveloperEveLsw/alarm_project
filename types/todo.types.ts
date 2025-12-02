@@ -12,6 +12,7 @@ export type ScheduleTodo = {
   alarmSetId: string | null;
   alarmTemplateId?: string | null;
   alarmRelations: ScheduleTodoAlarmRelation[];
+  categoryId: number | null;
 };
 
 export type ScheduleTodoAlarmRelation = {
@@ -33,4 +34,5 @@ export type ScheduleTodoFormData = {
   alarmOffsets: number[];
   isAlarmEnabled: boolean;
   alarmTemplateId?: string | null;
+  categoryId: number | null;
 };

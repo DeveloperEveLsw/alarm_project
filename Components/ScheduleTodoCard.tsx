@@ -7,6 +7,8 @@ import IconToggleButton from './Button/IconToggleButton';
 import TextToggleButton from './Button/TextToggleButton';
 import type { ScheduleTodo, ScheduleTodoFormData } from '../types/todo.types';
 export type { ScheduleTodo, ScheduleTodoFormData } from '../types/todo.types';
+import CategorySelector from './CategorySelector';
+import type { Category } from '../types/category.types';
 
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -21,6 +23,7 @@ type InternalFormState = {
   alarmOffsets: number[];
   isAlarmEnabled: boolean;
   alarmTemplateId: string | null;
+  categoryId: number | null;
 };
 
 type ScheduleTodoCardProps = {
@@ -35,6 +38,8 @@ type ScheduleTodoCardProps = {
   mode?: 'existing' | 'new';
   onDelete?: (todo: ScheduleTodo) => Promise<void> | void;
   isDeleting?: boolean;
+  categories: Category[];
+  onCreateCategory: (name: string) => Promise<Category>;
 };
 
 const parseDueTime = (dueTime: string | null | undefined): [number, number] => {
@@ -73,6 +78,7 @@ const buildInitialFormState = (initialData?: ScheduleTodo): InternalFormState =>
     alarmOffsets: initialAlarmOffsets,
     isAlarmEnabled: initialAlarmOffsets.length > 0,
     alarmTemplateId: initialData?.alarmTemplateId ?? null,
+    categoryId: initialData?.categoryId ?? null,
   };
 
   if (initialData?.repeatType === 'weekly' && Array.isArray(initialData.repeatWeekdays)) {
@@ -131,6 +137,8 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
   headerMeta,
   mode,
   onDelete,
+  categories,
+  onCreateCategory,
 }) => {
   const [title, setTitle] = useState('');
   const [timeValue, setTimeValue] = useState<[number, number]>([0, 0]);
@@ -143,6 +151,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
   const [isAlarmEnabled, setIsAlarmEnabled] = useState(false);
   const [alarmOffsetInput, setAlarmOffsetInput] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
 
   const hourData = useMemo(
     () => [...Array(24).keys()].map(value => ({ label: String(value).padStart(2, '0'), value })),
@@ -170,6 +179,10 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
     [alarmOffsetInput, isSaving],
   );
 
+  const handleSelectCategory = useCallback((categoryId: number | null) => {
+    setSelectedCategoryId(categoryId);
+  }, []);
+
   const applyFormState = useCallback((state: InternalFormState) => {
     setTitle(state.title);
     setTimeValue(state.timeValue);
@@ -182,6 +195,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
     setIsAlarmEnabled(state.isAlarmEnabled);
     setAlarmOffsetInput('');
     setSelectedTemplateId(state.alarmTemplateId);
+    setSelectedCategoryId(state.categoryId);
   }, []);
 
   const syncWithInitialData = useCallback(() => {
@@ -317,6 +331,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
       alarmOffsets: isAlarmEnabled ? sortedAlarmOffsets : [],
       isAlarmEnabled: isAlarmEnabled && sortedAlarmOffsets.length > 0,
       alarmTemplateId: selectedTemplateId,
+      categoryId: selectedCategoryId,
     };
 
     try {
@@ -339,6 +354,7 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
     repeatType,
     resetToInitial,
     selectedWeekdays,
+    selectedCategoryId,
     sortedAlarmOffsets,
     timeValue,
     title,
@@ -443,6 +459,16 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
               style={styles.titleInput}
               value={title}
               onChangeText={setTitle}
+            />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <CategorySelector
+              categories={categories}
+              value={selectedCategoryId}
+              onChange={handleSelectCategory}
+              onCreateCategory={onCreateCategory}
+              label="카테고리"
             />
           </View>
 

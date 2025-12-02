@@ -26,6 +26,7 @@ export type AlarmBase = {
   policyPayload?: AlarmPolicyPayload;
   alarmSetId?: string | null;
   geofenceLocation?: AlarmLocationInfo | null;
+  categoryId?: number | null;
 };
 
 export type AlarmDraft = AlarmBase & {

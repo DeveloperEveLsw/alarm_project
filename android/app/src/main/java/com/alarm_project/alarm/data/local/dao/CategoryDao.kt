@@ -17,6 +17,9 @@ interface CategoryDao {
     @Query("SELECT * FROM Category ORDER BY id ASC")
     suspend fun getAll(): List<CategoryEntity>
 
+    @Query("SELECT * FROM Category WHERE id = :id LIMIT 1")
+    suspend fun findById(id: Long): CategoryEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: CategoryEntity): Long
 

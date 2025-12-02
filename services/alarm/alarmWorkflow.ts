@@ -32,6 +32,7 @@ const toPersistable = (alarm: AlarmItem): PersistableAlarm => ({
   policyMode: alarm.policyMode ?? DEFAULT_POLICY_MODE,
   policyPayload: alarm.policyPayload ?? null,
   nextTriggerAt: alarm.nextTriggerAt ?? null,
+  categoryId: alarm.categoryId ?? null,
 });
 
 const buildAlarmItemFromDraft = (
@@ -62,6 +63,7 @@ const buildAlarmItemFromDraft = (
     policyPayload: draft.policyPayload ?? null,
     alarmSetId: draft.alarmSetId ?? null,
     geofenceLocation: draft.geofenceLocation ?? null,
+    categoryId: draft.categoryId ?? null,
   };
 };
 
@@ -121,6 +123,7 @@ export const toggleAlarmEnabled = async (
       enabled: true,
       nextTriggerAt: computeNextTrigger(alarm).valueOf(),
       alarmSetId: alarm.alarmSetId ?? null,
+      categoryId: alarm.categoryId ?? null,
     };
 
     await setAlarmEnabled(alarm.id, true);
@@ -144,6 +147,7 @@ export const toggleAlarmEnabled = async (
     enabled: false,
     nextTriggerAt: null,
     alarmSetId: alarm.alarmSetId ?? null,
+    categoryId: alarm.categoryId ?? null,
   };
 };
 

@@ -29,12 +29,8 @@ import { todoService } from '../services/todoService';
 import type { ScheduleTodo } from '../types/todo.types';
 import HorizontalCalendarPager from '../Components/HorizontalCalendarPager';
 import WheelPicker from '@quidone/react-native-wheel-picker';
-
-const CATEGORY_DEFINITIONS = [
-  { id: 'category-1', label: '카테고리 1', color: '#3B82F6' },
-  { id: 'category-2', label: '카테고리 2', color: '#10B981' },
-  { id: 'category-3', label: '카테고리 3', color: '#F97316' },
-];
+import { categoryService } from '../services/categoryService';
+import type { Category } from '../types/category.types';
 
 const SCROLL_RANGE = 50;
 
@@ -49,7 +45,10 @@ const CalendarScreen: React.FC = () => {
     queryKey: ['todos', 'all'],
     queryFn: todoService.getAllTodos,
   });
-  const categories = useMemo(() => CATEGORY_DEFINITIONS, []);
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ['categories'],
+    queryFn: categoryService.getCategories,
+  });
   const availableYears = useMemo(() => {
     const currentYear = dayjs().year();
     return Array.from({ length: 9 }, (_, index) => currentYear - 4 + index);
@@ -62,15 +61,7 @@ const CalendarScreen: React.FC = () => {
       })),
     [],
   );
-  const [categoryVisibility, setCategoryVisibility] = useState<Record<string, boolean>>(() =>
-    categories.reduce(
-      (acc, category) => ({
-        ...acc,
-        [category.id]: true,
-      }),
-      {},
-    ),
-  );
+  const [categoryVisibility, setCategoryVisibility] = useState<Record<number, boolean>>({});
   const [isMenuVisible, setMenuVisible] = useState(false);
   const menuAnimation = useRef(new Animated.Value(0)).current;
   const menuTranslateX = menuAnimation.interpolate({
@@ -89,6 +80,27 @@ const CalendarScreen: React.FC = () => {
     setSelectedYear(baseMonth.year());
     setSelectedMonth(baseMonth.month());
   }, [baseMonth]);
+  useEffect(() => {
+    setCategoryVisibility(prev => {
+      const next: Record<number, boolean> = { ...prev };
+      let changed = false;
+      const ids = new Set(categories.map(category => category.id));
+      categories.forEach(category => {
+        if (typeof next[category.id] === 'undefined') {
+          next[category.id] = true;
+          changed = true;
+        }
+      });
+      Object.keys(next).forEach(key => {
+        const id = Number(key);
+        if (!ids.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+      return changed ? { ...next } : next;
+    });
+  }, [categories]);
   const placeholderTheme = useMemo(
     () => ({
       'stylesheet.calendar-list.main': {
@@ -166,9 +178,10 @@ const CalendarScreen: React.FC = () => {
 
   const getCategoryForTodo = useCallback(
     (todo: ScheduleTodo) => {
-      if (categories.length === 0) return undefined;
-      const index = Math.abs(todo.id) % categories.length;
-      return categories[index];
+      if (todo.categoryId == null) {
+        return undefined;
+      }
+      return categories.find(category => category.id === todo.categoryId);
     },
     [categories],
   );
@@ -178,7 +191,7 @@ const CalendarScreen: React.FC = () => {
         .filterTodosByDate(todos, targetDate)
         .filter(todo => {
           const todoCategory = getCategoryForTodo(todo);
-          return todoCategory ? categoryVisibility[todoCategory.id] : true;
+          return todoCategory ? categoryVisibility[todoCategory.id] ?? true : true;
         }),
     [todos, categoryVisibility, getCategoryForTodo],
   );
@@ -260,7 +273,7 @@ const CalendarScreen: React.FC = () => {
                         <View
                           style={[styles.todoCategoryDot, { backgroundColor: todoCategory.color }]}
                         />
-                        <Text style={styles.todoCategoryLabel}>{todoCategory.label}</Text>
+                        <Text style={styles.todoCategoryLabel}>{todoCategory.name}</Text>
                       </View>
                     );
                   })()}
@@ -323,7 +336,7 @@ const CalendarScreen: React.FC = () => {
     }),
     [calendarStyle, placeholderTheme, renderDayComponent, renderCalendarHeader],
   );
-  const handleCategoryToggle = useCallback((categoryId: string, value: boolean) => {
+  const handleCategoryToggle = useCallback((categoryId: number, value: boolean) => {
     setCategoryVisibility(prev => ({
       ...prev,
       [categoryId]: value,
@@ -433,22 +446,26 @@ const CalendarScreen: React.FC = () => {
               </View>
               <View style={styles.menuSection}>
                 <Text style={styles.menuSectionTitle}>카테고리 필터</Text>
-                {categories.map(category => (
-                  <View key={category.id} style={styles.categoryRow}>
-                    <View style={styles.categoryLabelContainer}>
-                      <View
-                        style={[styles.categoryDot, { backgroundColor: category.color }]}
+                {categories.length === 0 ? (
+                  <Text style={styles.menuEmptyText}>카테고리를 추가하면 여기에서 필터링할 수 있어요.</Text>
+                ) : (
+                  categories.map(category => (
+                    <View key={category.id} style={styles.categoryRow}>
+                      <View style={styles.categoryLabelContainer}>
+                        <View
+                          style={[styles.categoryDot, { backgroundColor: category.color }]}
+                        />
+                        <Text style={styles.categoryLabel}>{category.name}</Text>
+                      </View>
+                      <Switch
+                        value={categoryVisibility[category.id] ?? true}
+                        onValueChange={value => handleCategoryToggle(category.id, value)}
+                        trackColor={{ true: '#10B981', false: '#9CA3AF' }}
+                        thumbColor="#ffffff"
                       />
-                      <Text style={styles.categoryLabel}>{category.label}</Text>
                     </View>
-                    <Switch
-                      value={categoryVisibility[category.id]}
-                      onValueChange={value => handleCategoryToggle(category.id, value)}
-                      trackColor={{ true: '#10B981', false: '#9CA3AF' }}
-                      thumbColor="#ffffff"
-                    />
-                  </View>
-                ))}
+                  ))
+                )}
               </View>
             </ScrollView>
           </Animated.View>
@@ -588,6 +605,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
     marginBottom: 12,
+  },
+  menuEmptyText: {
+    fontSize: 13,
+    color: '#6B7280',
   },
   monthPickerOverlay: {
     ...StyleSheet.absoluteFillObject,

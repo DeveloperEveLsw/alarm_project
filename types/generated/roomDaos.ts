@@ -90,6 +90,8 @@ export interface CategoryDaoContract {
   observeAll(): RoomFlow<RoomEntities.CategoryEntity[]>;
   // @Query("SELECT * FROM Category ORDER BY id ASC")
   getAll(): Promise<RoomEntities.CategoryEntity[]>;
+  // @Query("SELECT * FROM Category WHERE id = :id LIMIT 1")
+  findById(id: number): Promise<RoomEntities.CategoryEntity | null>;
   // @Insert(onConflict = OnConflictStrategy.REPLACE)
   upsert(entity: RoomEntities.CategoryEntity): Promise<number>;
   // @Insert(onConflict = OnConflictStrategy.REPLACE)

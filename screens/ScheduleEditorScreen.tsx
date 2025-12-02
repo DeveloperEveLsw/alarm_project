@@ -10,6 +10,8 @@ import type { ScheduleTodo, ScheduleTodoFormData } from '../types/todo.types';
 import { todoService } from '../services/todoService';
 import { syncTodoAlarms } from '../services/scheduleAlarmService';
 import { RootStackParamList } from '../types/navigation.types';
+import { categoryService } from '../services/categoryService';
+import type { Category } from '../types/category.types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ScheduleEditor'>;
 
@@ -28,6 +30,23 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
   const [deletingTodoId, setDeletingTodoId] = useState<number | null>(null);
 
   const queryClient = useQueryClient();
+
+  const categoriesQuery = useQuery<Category[]>({
+    queryKey: ['categories'],
+    queryFn: categoryService.getCategories,
+  });
+  const categories = categoriesQuery.data ?? [];
+  const createCategoryMutation = useMutation({
+    mutationFn: (name: string) => categoryService.createCategory(name),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+
+  const handleCreateCategory = useCallback(
+    (name: string) => createCategoryMutation.mutateAsync(name),
+    [createCategoryMutation],
+  );
 
   const closeExpandedCard = useCallback(() => {
     setExpandedCardId(null);
@@ -186,6 +205,8 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
                     onCancel={closeExpandedCard}
                     onSave={formData => handleSaveExisting(todo, formData)}
                     onDelete={handleDeleteTodo}
+                    categories={categories}
+                    onCreateCategory={handleCreateCategory}
                   />
                 );
               })}
@@ -196,6 +217,8 @@ const ScheduleEditorScreen: React.FC<Props> = ({ route }) => {
                 isSaving={createTodoMutation.isPending && activeMutationTarget === 'new'}
                 onSave={handleCreateTodo}
                 onCancel={handleNewCardCancel}
+                categories={categories}
+                onCreateCategory={handleCreateCategory}
               />
             </>
           )}

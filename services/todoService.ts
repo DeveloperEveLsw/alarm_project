@@ -40,6 +40,7 @@ const mapNativeToSchedule = (row: TodoNative): ScheduleTodo => ({
   alarmSetId: row.alarm_set_id ?? null,
   alarmTemplateId: null,
   alarmRelations: [],
+  categoryId: row.category_id != null ? Number(row.category_id) : null,
 });
 
 const mapNativeRelation = (row: TodoAlarmRelationNative): ScheduleTodoAlarmRelation => ({
@@ -74,6 +75,7 @@ const buildMutationPayload = (
     alarmSetId: existing?.alarmSetId ?? null,
     ddayId: existing?.ddayId ?? null,
     isDDay: formData.isDDay,
+    categoryId: formData.categoryId,
   };
 };
 

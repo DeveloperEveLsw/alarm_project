@@ -11,6 +11,7 @@ import com.alarm_project.alarm.data.local.entity.TodoAlarmRelationEntity
 import com.alarm_project.alarm.data.local.entity.TodoEntity
 import com.alarm_project.alarm.data.local.entity.GeoFenceZoneEntity
 import com.alarm_project.alarm.data.local.entity.GeoFenceHistoryEntity
+import com.alarm_project.alarm.data.local.entity.CategoryEntity
 import com.alarm_project.alarm.data.local.repository.AlarmLocalDataSource
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -51,6 +52,7 @@ private data class TodoMutationPayload(
     val alarmSetId: String? = null,
     val ddayId: Long? = null,
     val isDDay: Boolean = false,
+    val categoryId: Long? = null,
 )
 
 @Serializable
@@ -97,6 +99,7 @@ private data class AlarmPersistPayload(
     val policyMode: String? = null,
     val policyPayload: String? = null,
     val nextTriggerAt: Long? = null,
+    val categoryId: Long? = null,
 )
 
 private fun encodeWeekdays(days: List<Int>): Int {
@@ -624,6 +627,39 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
         }
     }
 
+    @ReactMethod
+    fun fetchCategories(promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val categories = dataSource().getCategories()
+                val result = toWritableArray(categories, ::categoryToMap)
+                withContext(Dispatchers.Main) { promise.resolve(result) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { promise.reject("db_fetch_categories_error", error) }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun createCategory(name: String, color: String, promise: Promise) {
+        scope.launch {
+            try {
+                ensureRoomDatabase()
+                val source = dataSource()
+                val insertedId = source.upsertCategory(CategoryEntity(name = name, color = color))
+                val created = if (insertedId > 0) {
+                    source.findCategoryById(insertedId) ?: CategoryEntity(id = insertedId, name = name, color = color)
+                } else {
+                    CategoryEntity(name = name, color = color)
+                }
+                withContext(Dispatchers.Main) { promise.resolve(categoryToMap(created)) }
+            } catch (error: Exception) {
+                withContext(Dispatchers.Main) { promise.reject("db_create_category_error", error) }
+            }
+        }
+    }
+
     private suspend fun ensureRoomDatabase() {
         try {
             AlarmRoomDatabase.getInstance(appContext).openHelper.writableDatabase
@@ -655,6 +691,7 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
         if (entity.ddayId != null) putDouble("dday_id", entity.ddayId.toDouble()) else putNull("dday_id")
         if (entity.alarmId != null) putString("alarm_id", entity.alarmId) else putNull("alarm_id")
         if (entity.alarmSetId != null) putString("alarm_set_id", entity.alarmSetId) else putNull("alarm_set_id")
+        if (entity.categoryId != null) putDouble("category_id", entity.categoryId.toDouble()) else putNull("category_id")
         if (entity.createdAt != null) putString("created_at", entity.createdAt) else putNull("created_at")
     }
 
@@ -662,6 +699,7 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
         putString("id", entity.id)
         if (entity.alarmSetId != null) putString("alarm_set_id", entity.alarmSetId) else putNull("alarm_set_id")
         if (entity.ddayId != null) putDouble("dday_id", entity.ddayId.toDouble()) else putNull("dday_id")
+        if (entity.categoryId != null) putDouble("category_id", entity.categoryId.toDouble()) else putNull("category_id")
         putString("label", entity.label)
         putInt("hour", entity.hour)
         putInt("minute", entity.minute)
@@ -734,6 +772,12 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
         putBoolean("state", entity.isInside)
     }
 
+    private fun categoryToMap(entity: CategoryEntity): WritableMap = Arguments.createMap().apply {
+        putDouble("id", entity.id.toDouble())
+        putString("name", entity.name)
+        putString("color", entity.color)
+    }
+
     private suspend fun upsertTodoInternal(payload: TodoMutationPayload): TodoEntity {
         val database = AlarmRoomDatabase.getInstance(appContext)
         return database.withTransaction {
@@ -754,6 +798,7 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
                 ddayId = payload.ddayId,
                 alarmId = payload.alarmId,
                 alarmSetId = payload.alarmSetId,
+                categoryId = payload.categoryId,
                 createdAt = null,
             )
 
@@ -826,6 +871,7 @@ class LocalDatabaseModule(private val appContext: ReactApplicationContext) :
         id = id,
         alarmSetId = alarmSetId,
         ddayId = ddayId,
+        categoryId = categoryId,
         label = label,
         hour = hour,
         minute = minute,
