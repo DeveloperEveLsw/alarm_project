@@ -638,6 +638,7 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
                 onValueChange={value => setState(prev => ({ ...prev, vibrate: value }))}
               />
             </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>지오펜싱 위치</Text>
               <Text style={styles.helperText}>해당 위치 반경 {state.geofenceLocation?.radius ?? 100}m</Text>
@@ -647,63 +648,42 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
                 </Text>
                 <Text style={styles.locationCardValue}>{locationSummary}</Text>
               </Pressable>
-              {state.geofenceLocation && (
-                <Pressable
-                  style={styles.locationResetButton}
-                  onPress={() => setState(prev => ({ ...prev, geofenceLocation: null }))}
-                >
-                  <Text style={styles.locationResetText}>위치 제거</Text>
-                </Pressable>
-              )}
-            </View>
-          </ScrollView>
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>지오펜싱 위치</Text>
-              <Text style={styles.helperText}>해당 위치 반경 {state.geofenceLocation?.radius ?? 100}m</Text>
-              <Pressable style={styles.locationCard} onPress={() => setShowLocationPicker(true)}>
-                <Text style={styles.locationCardTitle}>
-                  {state.geofenceLocation?.placeName ?? "위치 선택"}
-                </Text>
-                <Text style={styles.locationCardValue}>{locationSummary}</Text>
+            {state.geofenceLocation && (
+              <Pressable
+                style={styles.locationResetButton}
+                onPress={() => setState(prev => ({ ...prev, geofenceLocation: null }))}
+              >
+                <Text style={styles.locationResetText}>위치 제거</Text>
               </Pressable>
-              {state.geofenceLocation && (
-                <Pressable
-                  style={styles.locationResetButton}
-                  onPress={() => setState(prev => ({ ...prev, geofenceLocation: null }))}
-                >
-                  <Text style={styles.locationResetText}>위치 제거</Text>
-                </Pressable>
-              )}
-            </View>
-          </ScrollView>
+            )}
+          </View>
+          <View style={styles.separator} />
 
-            <View style={styles.separator} />
-
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>미션</Text>
-              <View style={styles.missionRow}>
-                {[
-                  { mode: "normal" as AlarmPolicyMode, label: "없음" },
-                  { mode: "math" as AlarmPolicyMode, label: "수식" },
-                  { mode: "shake" as AlarmPolicyMode, label: "흔들기" },
-                  { mode: "puzzle" as AlarmPolicyMode, label: "폴리오미노" },
-                ].map(option => {
-                  const active = state.policyMode === option.mode;
-                  return (
-                    <Pressable
-                      key={option.mode}
-                      onPress={() => handleMissionModeChange(option.mode)}
-                      style={[styles.missionButton, active && styles.missionButtonActive]}
-                    >
-                      <Text style={[styles.missionButtonLabel, active && styles.missionButtonLabelActive]}>
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={styles.helperText}>알람을 해제하려면 선택한 미션을 완료해야 합니다.</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>미션</Text>
+            <View style={styles.missionRow}>
+              {[
+                { mode: "normal" as AlarmPolicyMode, label: "없음" },
+                { mode: "math" as AlarmPolicyMode, label: "수식" },
+                { mode: "shake" as AlarmPolicyMode, label: "흔들기" },
+                { mode: "puzzle" as AlarmPolicyMode, label: "폴리오미노" },
+              ].map(option => {
+                const active = state.policyMode === option.mode;
+                return (
+                  <Pressable
+                    key={option.mode}
+                    onPress={() => handleMissionModeChange(option.mode)}
+                    style={[styles.missionButton, active && styles.missionButtonActive]}
+                  >
+                    <Text style={[styles.missionButtonLabel, active && styles.missionButtonLabelActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
+            <Text style={styles.helperText}>알람을 해제하려면 선택한 미션을 완료해야 합니다.</Text>
+          </View>
 
             {state.policyMode === "math" ? (
               <View style={styles.missionCard}>
@@ -959,7 +939,7 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
       onCancel={() => setShowLocationPicker(false)}
     />
   </Modal>
-  );
+);
 };
 
 const styles = StyleSheet.create({
