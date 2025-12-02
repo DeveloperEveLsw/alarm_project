@@ -84,6 +84,24 @@ export interface AlarmTemplateDaoContract {
   deleteByTemplateId(templateId: string): Promise<void>;
 }
 
+// Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/CategoryDao.kt
+export interface CategoryDaoContract {
+  // @Query("SELECT * FROM Category ORDER BY id ASC")
+  observeAll(): RoomFlow<RoomEntities.CategoryEntity[]>;
+  // @Query("SELECT * FROM Category ORDER BY id ASC")
+  getAll(): Promise<RoomEntities.CategoryEntity[]>;
+  // @Insert(onConflict = OnConflictStrategy.REPLACE)
+  upsert(entity: RoomEntities.CategoryEntity): Promise<number>;
+  // @Insert(onConflict = OnConflictStrategy.REPLACE)
+  upsertAll(entities: RoomEntities.CategoryEntity[]): Promise<void>;
+  // @Update
+  update(entity: RoomEntities.CategoryEntity): Promise<void>;
+  // @Delete
+  delete(entity: RoomEntities.CategoryEntity): Promise<void>;
+  // @Query("DELETE FROM Category WHERE id = :id")
+  deleteById(id: number): Promise<void>;
+}
+
 // Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/DDayDao.kt
 export interface DDayDaoContract {
   // @Query("SELECT * FROM Dday ORDER BY target_date ASC")

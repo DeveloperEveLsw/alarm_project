@@ -145,12 +145,12 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
   const hourData = useMemo(
-    () => [...Array(24).keys()].map(value => ({ label: `${String(value).padStart(2, '0')}시`, value })),
+    () => [...Array(24).keys()].map(value => ({ label: String(value).padStart(2, '0'), value })),
     [],
   );
 
   const minuteData = useMemo(
-    () => [...Array(60).keys()].map(value => ({ label: `${String(value).padStart(2, '0')}분`, value })),
+    () => [...Array(60).keys()].map(value => ({ label: String(value).padStart(2, '0'), value })),
     [],
   );
 
@@ -524,26 +524,36 @@ const ScheduleTodoCard: React.FC<ScheduleTodoCardProps> = ({
 
           {isTimePickerVisible ? (
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>시간 선택</Text>
-              <View style={styles.timePickerRow}>
-                <WheelPicker
-                  data={hourData}
-                  value={timeValue[0]}
-                  onValueChanged={({ item: { value } }) =>
-                    setTimeValue([value, timeValue[1]])
-                  }
-                  visibleItemCount={3}
-                  overlayItemStyle={styles.hourOverlay}
-                />
-                <WheelPicker
-                  data={minuteData}
-                  value={timeValue[1]}
-                  onValueChanged={({ item: { value } }) =>
-                    setTimeValue([timeValue[0], value])
-                  }
-                  visibleItemCount={3}
-                  overlayItemStyle={styles.minuteOverlay}
-                />
+              <View style={styles.timePickerCard}>
+                <View style={styles.timePickerRow}>
+                  <View style={styles.timeWheelContainer}>
+                    <WheelPicker
+                      data={hourData}
+                      value={timeValue[0]}
+                      onValueChanged={({ item: { value } }) =>
+                        setTimeValue([value, timeValue[1]])
+                      }
+                      visibleItemCount={3}
+                      style={styles.timeWheel}
+                      itemTextStyle={styles.timeWheelText}
+                    />
+                    <Text style={styles.timeWheelUnit}>시</Text>
+                  </View>
+                  <Text style={styles.timeColon}>:</Text>
+                  <View style={styles.timeWheelContainer}>
+                    <WheelPicker
+                      data={minuteData}
+                      value={timeValue[1]}
+                      onValueChanged={({ item: { value } }) =>
+                        setTimeValue([timeValue[0], value])
+                      }
+                      visibleItemCount={3}
+                      style={styles.timeWheel}
+                      itemTextStyle={styles.timeWheelText}
+                    />
+                    <Text style={styles.timeWheelUnit}>분</Text>
+                  </View>
+                </View>
               </View>
             </View>
           ) : null}
@@ -831,25 +841,54 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  timePickerRow: {
-    flexDirection: 'row',
+  timePickerCard: {
+    marginTop: 8,
     backgroundColor: '#ffffff',
-    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#d8e2f8',
-    overflow: 'hidden',
+    borderRadius: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    alignItems: 'center',
   },
-  hourOverlay: {
-    borderRadius: 0,
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
-    backgroundColor: '#edf3ff',
+  timeCardTitle: {
+    alignSelf: 'flex-start',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2a37',
+    marginBottom: 12,
   },
-  minuteOverlay: {
-    borderRadius: 0,
-    borderTopRightRadius: 12,
-    borderBottomRightRadius: 12,
-    backgroundColor: '#edf3ff',
+  timePickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeWheelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 12,
+  },
+  timeWheel: {
+    width: 110,
+    height: 170,
+  },
+  timeWheelText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  timeWheelUnit: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+  timeColon: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#111827',
+    marginHorizontal: 8,
   },
   repeatContainer: {
     backgroundColor: '#ffffff',
@@ -1026,5 +1065,3 @@ const styles = StyleSheet.create({
 });
 
 export default ScheduleTodoCard;
-
-

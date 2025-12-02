@@ -11,7 +11,8 @@ import androidx.room.PrimaryKey
         Index(value = ["due_date"]),
         Index(value = ["dday_id"]),
         Index(value = ["alarm_id"]),
-        Index(value = ["alarm_set_id"])
+        Index(value = ["alarm_set_id"]),
+        Index(value = ["category_id"]),
     ]
 )
 data class TodoEntity(
@@ -40,6 +41,8 @@ data class TodoEntity(
     val alarmId: String? = null,
     @ColumnInfo(name = "alarm_set_id")
     val alarmSetId: String? = null,
+    @ColumnInfo(name = "category_id")
+    val categoryId: Long? = null,
     @ColumnInfo(name = "created_at")
     val createdAt: String? = null,
 )

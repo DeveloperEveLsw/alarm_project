@@ -70,6 +70,14 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
     setIsMorning(toIsMorning(draft.hour));
   }, [draft]);
 
+  const periodData = useMemo(
+    () => [
+      { label: "오전", value: "am" },
+      { label: "오후", value: "pm" },
+    ],
+    [],
+  );
+
   const hourData = useMemo(
     () =>
       [...Array(12).keys()].map(index => {
@@ -199,37 +207,34 @@ const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel })
         <View style={styles.card}>
           <Text style={styles.title}>알람 설정</Text>
           <View style={styles.timePickerRow}>
-            <View style={styles.periodColumn}>
-              {(["오전", "오후"] as const).map(label => {
-                const selected = (label === "오전" && isMorning) || (label === "오후" && !isMorning);
-                return (
-                  <Pressable
-                    key={label}
-                    onPress={() => setIsMorning(label === "오전")}
-                    style={[styles.periodButton, selected && styles.periodButtonActive]}
-                  >
-                    <Text style={[styles.periodLabel, selected && styles.periodLabelActive]}>{label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <View style={styles.wheelColumn}>
-              <WheelPicker
-                data={hourData}
-                value={toDisplayHour(state.hour)}
-                onValueChanged={({ item }) => handleHourChange(item.value as number)}
-                style={styles.wheel}
-              />
-            </View>
+            <WheelPicker
+              data={periodData}
+              value={isMorning ? "am" : "pm"}
+              onValueChanged={({ item }) => setIsMorning(item.value === "am")}
+              style={[styles.wheel, styles.periodWheel]}
+              visibleItemCount={3}
+              itemTextStyle={styles.wheelText}
+            />
+            <View style={styles.wheelSpacer} />
+            <WheelPicker
+              data={hourData}
+              value={toDisplayHour(state.hour)}
+              onValueChanged={({ item }) => handleHourChange(item.value as number)}
+              style={styles.wheel}
+              visibleItemCount={3}
+              itemTextStyle={styles.wheelText}
+            />
+            <View style={styles.wheelSpacer} />
             <Text style={styles.timeColon}>:</Text>
-            <View style={styles.wheelColumn}>
-              <WheelPicker
-                data={minuteData}
-                value={state.minute}
-                onValueChanged={({ item }) => handleMinuteChange(item.value as number)}
-                style={styles.wheel}
-              />
-            </View>
+            <View style={styles.wheelSpacer} />
+            <WheelPicker
+              data={minuteData}
+              value={state.minute}
+              onValueChanged={({ item }) => handleMinuteChange(item.value as number)}
+              style={styles.wheel}
+              visibleItemCount={3}
+              itemTextStyle={styles.wheelText}
+            />
           </View>
 
           <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -362,43 +367,25 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 12,
   },
-  periodColumn: {
-    marginRight: 12,
-    justifyContent: "center",
-  },
-  periodButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    marginBottom: 8,
-  },
-  periodButtonActive: {
-    backgroundColor: "#2563eb",
-    borderColor: "#2563eb",
-  },
-  periodLabel: {
-    fontSize: 14,
-    color: "#374151",
-    textAlign: "center",
-  },
-  periodLabelActive: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  wheelColumn: {
-    width: 80,
+  wheel: {
+    width: 88,
     height: 160,
   },
-  wheel: {
-    width: "100%",
-    height: "100%",
+  periodWheel: {
+    width: 72,
+  },
+  wheelSpacer: {
+    width: 12,
+  },
+  wheelText: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: "#111827",
   },
   timeColon: {
-    fontSize: 32,
-    fontWeight: "600",
-    marginHorizontal: 8,
+    fontSize: 34,
+    fontWeight: "700",
+    color: "#111827",
   },
   scrollContent: {
     paddingBottom: 16,

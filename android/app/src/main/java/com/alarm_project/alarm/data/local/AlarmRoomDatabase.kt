@@ -8,6 +8,7 @@ import com.alarm_project.alarm.data.local.dao.AlarmDao
 import com.alarm_project.alarm.data.local.dao.AlarmSetDao
 import com.alarm_project.alarm.data.local.dao.AlarmSetTemplateDao
 import com.alarm_project.alarm.data.local.dao.AlarmTemplateDao
+import com.alarm_project.alarm.data.local.dao.CategoryDao
 import com.alarm_project.alarm.data.local.dao.DDayDao
 import com.alarm_project.alarm.data.local.dao.GeoFenceHistoryDao
 import com.alarm_project.alarm.data.local.dao.GeoFenceZoneDao
@@ -20,6 +21,7 @@ import com.alarm_project.alarm.data.local.entity.TodoAlarmRelationEntity
 import com.alarm_project.alarm.data.local.entity.TodoEntity
 import com.alarm_project.alarm.data.local.entity.AlarmSetTemplateEntity
 import com.alarm_project.alarm.data.local.entity.AlarmTemplateEntity
+import com.alarm_project.alarm.data.local.entity.CategoryEntity
 import com.alarm_project.alarm.data.local.entity.GeoFenceHistoryEntity
 import com.alarm_project.alarm.data.local.entity.GeoFenceZoneEntity
 
@@ -34,8 +36,9 @@ import com.alarm_project.alarm.data.local.entity.GeoFenceZoneEntity
         AlarmTemplateEntity::class,
         GeoFenceZoneEntity::class,
         GeoFenceHistoryEntity::class,
+        CategoryEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class AlarmRoomDatabase : RoomDatabase() {
@@ -48,6 +51,7 @@ abstract class AlarmRoomDatabase : RoomDatabase() {
     abstract fun alarmTemplateDao(): AlarmTemplateDao
     abstract fun geoFenceZoneDao(): GeoFenceZoneDao
     abstract fun geoFenceHistoryDao(): GeoFenceHistoryDao
+    abstract fun categoryDao(): CategoryDao
 
     companion object {
         private const val DATABASE_NAME = "schedule.db"

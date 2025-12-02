@@ -98,3 +98,10 @@ export interface GeoFenceHistoryEntity {
   zone_id: number;
   state: boolean;
 }
+
+// Source: android/app/schemas/com.alarm_project.alarm.data.local.AlarmRoomDatabase/7.json
+export interface CategoryEntity {
+  id: number;
+  name: string;
+  color: string;
+}
