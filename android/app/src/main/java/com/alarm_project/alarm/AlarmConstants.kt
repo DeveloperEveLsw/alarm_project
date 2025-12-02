@@ -9,6 +9,7 @@ object AlarmConstants {
     const val EXTRA_COMMAND_JSON = "extra_command_json"
     const val EXTRA_SPEC_JSON = "extra_spec_json"
     const val EXTRA_EVENT_JSON = "extra_event_json"
+    const val EXTRA_REQUIRES_CHALLENGE = "extra_requires_challenge"
 
     const val EVENT_NAME = "AlarmEvent"
 

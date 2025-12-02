@@ -11,6 +11,8 @@ import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.alarm_project.R
+import java.util.ArrayList
+import java.util.Locale
 
 object AlarmNotifications {
     fun ensureChannels(context: Context) {
@@ -51,9 +53,19 @@ object AlarmNotifications {
         channelOverride: AlarmChannel? = null
     ): Notification {
         ensureChannels(context)
+        val requiresChallenge = requiresChallenge(spec)
         val alarmActivityIntent = Intent(context, AlarmActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("alarm_id", spec.id)
+            putExtra(AlarmConstants.EXTRA_REQUIRES_CHALLENGE, requiresChallenge)
+            if (requiresChallenge) {
+                putExtra("policy_mode", spec.policy.mode.name.lowercase(Locale.US))
+                val policyPayload = spec.metadata?.get("policy_payload") ?: spec.payload?.get("policy_payload")
+                policyPayload?.let { putExtra("policy_payload", it) }
+                spec.policy.snoozeMinutes?.let { minutes ->
+                    putIntegerArrayListExtra("policy_snooze_minutes", ArrayList(minutes))
+                }
+            }
         }
 
         val alarmActivityPendingIntent = PendingIntent.getActivity(
@@ -135,5 +147,19 @@ object AlarmNotifications {
 
     private fun buildActionRequestCode(id: String, suffix: String): Int {
         return (id + suffix).hashCode()
+    }
+
+    private fun requiresChallenge(spec: AlarmSpec): Boolean {
+        return when (spec.policy.mode) {
+            AlarmMode.MATH,
+            AlarmMode.SHAKE,
+            AlarmMode.PUZZLE -> true
+            else -> {
+                val metaMode = spec.metadata?.get("policyMode")
+                metaMode.equals("math", ignoreCase = true) ||
+                    metaMode.equals("shake", ignoreCase = true) ||
+                    metaMode.equals("puzzle", ignoreCase = true)
+            }
+        }
     }
 }

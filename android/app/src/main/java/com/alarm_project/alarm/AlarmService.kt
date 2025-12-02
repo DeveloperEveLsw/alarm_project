@@ -218,10 +218,10 @@ class AlarmService : Service() {
 
     private fun buildAlarmActivityIntent(spec: AlarmSpec): Intent {
         val requiresChallenge = requiresChallenge(spec)
-        val target = if (requiresChallenge) AlarmChallengeActivity::class.java else AlarmActivity::class.java
-        return Intent(this, target).apply {
+        return Intent(this, AlarmActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("alarm_id", spec.id)
+            putExtra(AlarmConstants.EXTRA_REQUIRES_CHALLENGE, requiresChallenge)
             if (requiresChallenge) {
                 putExtra("policy_mode", spec.policy.mode.name.lowercase(Locale.US))
                 val policyPayload = spec.metadata?.get("policy_payload") ?: spec.payload?.get("policy_payload")

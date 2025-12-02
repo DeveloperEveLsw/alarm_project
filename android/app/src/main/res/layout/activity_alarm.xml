@@ -3,37 +3,53 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center"
     android:background="#111827"
     android:padding="32dp">
 
     <TextView
         android:id="@+id/alarmMessage"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textSize="24sp"
         android:textColor="#FFFFFF"
         android:text=""
-        android:layout_marginBottom="24dp"
+        android:layout_marginBottom="16dp"
         android:textStyle="bold" />
 
-    <Button
-        android:id="@+id/alarmDismissButton"
+    <FrameLayout
+        android:id="@+id/alarmChallengeContainer"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="알람 끄기"
-        android:layout_marginBottom="12dp"
-        android:backgroundTint="@android:color/holo_red_light"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp" />
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone"
+        android:background="#0f172a"
+        android:layout_marginBottom="16dp"
+        android:layout_marginTop="8dp" />
 
-    <Button
-        android:id="@+id/alarmSnoozeButton"
+    <LinearLayout
+        android:id="@+id/alarmButtonGroup"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="5분 뒤 다시"
-        android:backgroundTint="@android:color/holo_blue_dark"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp" />
+        android:orientation="vertical">
+
+        <Button
+            android:id="@+id/alarmDismissButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="알람 끄기"
+            android:layout_marginBottom="12dp"
+            android:backgroundTint="@android:color/holo_red_light"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp" />
+
+        <Button
+            android:id="@+id/alarmSnoozeButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="5분 뒤 다시"
+            android:backgroundTint="@android:color/holo_blue_dark"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp" />
+    </LinearLayout>
 
 </LinearLayout>

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo } from "react";
-import { SafeAreaView, StyleSheet, Text } from "react-native";
+import React, { useCallback, useEffect, useMemo } from "react";
+import { NativeModules, SafeAreaView, StyleSheet, Text } from "react-native";
 
 import MathChallenge, { type MathChallengeSettings } from "../Components/Challenge/MathChallenge";
 import PuzzleChallenge from "../Components/Challenge/PuzzleChallenge";
@@ -14,6 +14,7 @@ type ChallengeRootProps = {
   policyMode?: string;
   policyPayload?: string | null;
   snoozeMinutes?: number[];
+  nativeHosted?: boolean;
 };
 
 type MathPolicyPayload = {
@@ -140,7 +141,11 @@ const normalizeSnoozeMinutes = (values?: number[]): number[] => {
     .sort((a, b) => a - b);
 };
 
-const AlarmChallengeRoot: React.FC<ChallengeRootProps> = ({ alarmId, policyMode, policyPayload, snoozeMinutes }) => {
+type MissionBridgeModule = {
+  notifyMissionCompleted: () => Promise<void>;
+};
+
+const AlarmChallengeRoot: React.FC<ChallengeRootProps> = ({ alarmId, policyMode, policyPayload, snoozeMinutes, nativeHosted }) => {
   const normalizedSnooze = useMemo(() => {
     const sanitized = normalizeSnoozeMinutes(snoozeMinutes);
     return sanitized.length > 0 ? sanitized : [5];
@@ -148,6 +153,8 @@ const AlarmChallengeRoot: React.FC<ChallengeRootProps> = ({ alarmId, policyMode,
 
   const parsedPayload = useMemo(() => parsePolicyPayload(policyPayload), [policyPayload]);
   const mode = (policyMode ?? "normal").toLowerCase();
+  const missionBridge = NativeModules.AlarmMissionBridge as MissionBridgeModule | undefined;
+  const isNativeHosted = Boolean(nativeHosted);
 
   useEffect(() => {
     if (!alarmId) return;
@@ -161,15 +168,38 @@ const AlarmChallengeRoot: React.FC<ChallengeRootProps> = ({ alarmId, policyMode,
     return unsubscribe;
   }, [alarmId]);
 
-  const handleComplete = async () => {
-    if (!alarmId) return;
-    await AlarmEngine.send({ type: "DISMISS", id: alarmId }).catch(console.error);
-  };
+  const notifyNativeMissionCompletion = useCallback(async () => {
+    if (!isNativeHosted || !alarmId) {
+      return;
+    }
+    try {
+      await AlarmEngine.send({ type: "STOP_NATIVE", id: alarmId }).catch(() => {});
+    } finally {
+      if (missionBridge?.notifyMissionCompleted) {
+        await missionBridge.notifyMissionCompleted().catch(() => {});
+      }
+    }
+  }, [alarmId, isNativeHosted, missionBridge]);
 
-  const handleSnooze = async (minutes?: number) => {
+  const handleComplete = useCallback(async () => {
     if (!alarmId) return;
-    await AlarmEngine.send({ type: "SNOOZE", id: alarmId, minutes }).catch(console.error);
-  };
+    if (isNativeHosted) {
+      await notifyNativeMissionCompletion();
+      return;
+    }
+    await AlarmEngine.send({ type: "DISMISS", id: alarmId }).catch(console.error);
+  }, [alarmId, isNativeHosted, notifyNativeMissionCompletion]);
+
+  const handleSnooze = useCallback(
+    async (minutes?: number) => {
+      if (!alarmId) return;
+      await AlarmEngine.send({ type: "SNOOZE", id: alarmId, minutes }).catch(console.error);
+      if (isNativeHosted) {
+        await notifyNativeMissionCompletion();
+      }
+    },
+    [alarmId, isNativeHosted, notifyNativeMissionCompletion],
+  );
 
   if (!alarmId) {
     return (
