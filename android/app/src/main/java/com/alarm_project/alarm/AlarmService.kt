@@ -62,11 +62,6 @@ class AlarmService : Service() {
         val shouldLaunchFullScreen = requiresChallenge || shouldForceFullScreen(lockStateSnapshot)
 
         startRinging(spec, shouldLaunchFullScreen, null, lockStateSnapshot)
-
-        if (shouldLaunchFullScreen) {
-            Log.d("AlarmService", "launching full screen alarm activity")
-            launchAlarmActivity(spec)
-        }
     }
 
     private fun handleCommand(intent: Intent) {
@@ -94,7 +89,35 @@ class AlarmService : Service() {
         val lockState = lockStateOverride ?: lastLockState ?: ContextSnapshotBuilder(this).getLockStateSnapshot()
         lastLockState = lockState
         val resolvedFullScreen = fullScreen || shouldForceFullScreen(lockState)
-        setForeground(spec, isRinging = true, fullScreen = resolvedFullScreen, channelOverride = channelOverride)
+        val overlayAllowed = !resolvedFullScreen && AlarmHeadsUpOverlay.canDrawOverlays(applicationContext)
+        val resolvedChannelOverride = when {
+            resolvedFullScreen -> channelOverride
+            overlayAllowed -> AlarmChannel.SILENT
+            else -> channelOverride
+        }
+        val useLegacyHeadsUp = !resolvedFullScreen && !overlayAllowed
+        Log.d(
+            "AlarmService",
+            "startRinging overlayAllowed=$overlayAllowed resolvedFullScreen=$resolvedFullScreen useLegacy=$useLegacyHeadsUp",
+        )
+        setForeground(
+            spec,
+            isRinging = true,
+            fullScreen = resolvedFullScreen,
+            channelOverride = resolvedChannelOverride,
+            useLegacyHeadsUp = useLegacyHeadsUp,
+        )
+
+        val overlayShown = if (overlayAllowed) {
+            AlarmHeadsUpOverlay.show(applicationContext, spec)
+        } else {
+            false
+        }
+
+        if (resolvedFullScreen || (overlayAllowed && !overlayShown)) {
+            AlarmHeadsUpOverlay.hide()
+            launchAlarmActivity(spec)
+        }
 
         val audioManager = ContextCompat.getSystemService(this, AudioManager::class.java)
         val focusResult = audioManager?.requestAudioFocus(
@@ -124,9 +147,17 @@ class AlarmService : Service() {
         spec: AlarmSpec,
         isRinging: Boolean,
         fullScreen: Boolean,
-        channelOverride: AlarmChannel?
+        channelOverride: AlarmChannel?,
+        useLegacyHeadsUp: Boolean,
     ) {
-        val notification = AlarmNotifications.buildForeground(this, spec, isRinging, fullScreen, channelOverride)
+        val notification = AlarmNotifications.buildForeground(
+            this,
+            spec,
+            isRinging,
+            fullScreen,
+            channelOverride,
+            useLegacyHeadsUp,
+        )
         if (!isForeground) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
@@ -194,6 +225,7 @@ class AlarmService : Service() {
     }
 
     private fun stopRinging() {
+        AlarmHeadsUpOverlay.hide()
         ringtone?.stop()
         ringtone = null
         vibrator?.cancel()
@@ -219,9 +251,11 @@ class AlarmService : Service() {
     private fun buildAlarmActivityIntent(spec: AlarmSpec): Intent {
         val requiresChallenge = requiresChallenge(spec)
         return Intent(this, AlarmActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION
             putExtra("alarm_id", spec.id)
+            putExtra("alarm_fire_at", spec.fireAt)
             putExtra(AlarmConstants.EXTRA_REQUIRES_CHALLENGE, requiresChallenge)
+            spec.label?.let { putExtra("alarm_label", it) }
             if (requiresChallenge) {
                 putExtra("policy_mode", spec.policy.mode.name.lowercase(Locale.US))
                 val policyPayload = spec.metadata?.get("policy_payload") ?: spec.payload?.get("policy_payload")
@@ -238,7 +272,6 @@ class AlarmService : Service() {
         val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
         if (resolveInfo != null) {
             startActivity(intent)
-            Log.d("AlarmService", "startActivity!!")
         }
     }
 
@@ -262,11 +295,24 @@ class AlarmService : Service() {
             ?: Settings.System.DEFAULT_ALARM_ALERT_URI
 
         val raw = spec.metadata?.get("sound")?.takeIf { it.isNotBlank() && it != "default" }
-        val parsed = raw?.let { runCatching { Uri.parse(it) }.getOrNull() }
-        if (parsed == null && raw != null) {
-            Log.w("AlarmService", "Invalid alarm sound uri: $raw")
+        if (raw == null) return fallback
+
+        val parsed = runCatching { Uri.parse(raw) }.getOrNull()?.takeIf { !it.scheme.isNullOrBlank() }
+        if (parsed == null) {
+            Log.w("AlarmService", "Invalid alarm sound uri (missing scheme): $raw")
+            return fallback
         }
-        return parsed ?: fallback
+
+        val resolver = applicationContext.contentResolver
+        val valid = runCatching {
+            resolver.openAssetFileDescriptor(parsed, "r")?.use { }
+        }.isSuccess
+        if (!valid) {
+            Log.w("AlarmService", "Alarm sound uri not accessible, falling back: $raw")
+            return fallback
+        }
+
+        return parsed
     }
 
     private fun handleVibration(spec: AlarmSpec) {

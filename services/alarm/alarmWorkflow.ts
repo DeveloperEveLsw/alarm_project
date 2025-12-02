@@ -9,6 +9,7 @@ import {
   updateAlarm,
 } from "./alarmStorage";
 import { generateAlarmId } from "./id";
+import { syncAlarmGeofence, removeAlarmGeofence } from "../geofencing/alarmGeofencing";
 
 const DEFAULT_POLICY_MODE: AlarmPolicyMode = "normal";
 
@@ -60,6 +61,7 @@ const buildAlarmItemFromDraft = (
     policyMode: draft.policyMode ?? DEFAULT_POLICY_MODE,
     policyPayload: draft.policyPayload ?? null,
     alarmSetId: draft.alarmSetId ?? null,
+    geofenceLocation: draft.geofenceLocation ?? null,
   };
 };
 
@@ -76,6 +78,8 @@ export const createAlarmFromDraft = async (
     const nextFireAt = await scheduleAlarm(alarm, alarm.nextTriggerAt ?? undefined);
     alarm.nextTriggerAt = nextFireAt;
   }
+  alarm.geofenceLocation = draft.geofenceLocation ?? null;
+  await syncAlarmGeofence(alarm.id, alarm.geofenceLocation, alarm.enabled);
 
   return alarm;
 };
@@ -101,6 +105,8 @@ export const updateAlarmFromDraft = async (
     const nextFireAt = await scheduleAlarm(updated, updated.nextTriggerAt ?? undefined);
     updated.nextTriggerAt = nextFireAt;
   }
+  updated.geofenceLocation = draft.geofenceLocation ?? null;
+  await syncAlarmGeofence(updated.id, updated.geofenceLocation, updated.enabled);
 
   return updated;
 };
@@ -120,6 +126,7 @@ export const toggleAlarmEnabled = async (
     await setAlarmEnabled(alarm.id, true);
     const nextFireAt = await scheduleAlarm(target, target.nextTriggerAt ?? undefined);
     target.nextTriggerAt = nextFireAt;
+    await syncAlarmGeofence(target.id, target.geofenceLocation ?? null, true);
     return target;
   }
 
@@ -130,6 +137,7 @@ export const toggleAlarmEnabled = async (
   }
 
   await setAlarmEnabled(alarm.id, false);
+  await syncAlarmGeofence(alarm.id, null, false);
 
   return {
     ...alarm,
@@ -157,6 +165,7 @@ export const deleteAlarms = async (alarms: AlarmItem[]): Promise<void> => {
       } catch (error) {
         console.warn("[AlarmWorkflow] Failed to cancel alarm before delete", error);
       }
+      await removeAlarmGeofence(alarm.id);
     }),
   );
 

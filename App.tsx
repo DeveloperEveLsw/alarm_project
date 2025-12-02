@@ -14,7 +14,6 @@ import SubScreenTwo from './screens/SubScreenTwo';
 import ScheduleEditorScreen from './screens/ScheduleEditorScreen';
 import CustomHeader from './Components/CustomHeader';
 import TodoScreen from './screens/TodoScreen';
-import AlarmScreen from './screens/AlarmScreen';
 import DDayScreen from './screens/DDayScreen';
 import AlarmPermissionsScreen from './screens/AlarmPermissionsScreen';
 import AlarmMathScreen from './screens/AlarmMathScreen';
@@ -154,7 +153,6 @@ function App() {
                 })}
               />
               <Stack.Screen name="Todo" component={TodoScreen} options={{ title: '할 일' }} />
-              <Stack.Screen name="Alarm" component={AlarmScreen} options={{ title: '알람' }} />
               <Stack.Screen name="DDay" component={DDayScreen} options={{ title: 'D-DAY' }} />
               <Stack.Screen name="AlarmPermissions" component={AlarmPermissionsScreen} options={{ title: '알람 권한 안내' }} />
               <Stack.Screen

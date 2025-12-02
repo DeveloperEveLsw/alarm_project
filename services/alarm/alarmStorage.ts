@@ -5,7 +5,7 @@ import type {
   AlarmPolicyPayload,
   AlarmRepeatDay,
 } from '../../types/alarm.types';
-import { localDatabase, type AlarmNative, type AlarmPersistPayload } from '../db/localDatabase';
+import { localDatabase, type AlarmNative, type AlarmPersistPayload, type GeoFenceZoneEntity } from '../db/localDatabase';
 import { decodeWeekdays } from '../../utils/repeatMask';
 
 const DEFAULT_POLICY_MODE: AlarmPolicyMode = 'normal';
@@ -30,7 +30,7 @@ const parsePolicyPayload = (value: string | null): AlarmPolicyPayload => {
   return null;
 };
 
-const mapNativeToAlarm = (row: AlarmNative): AlarmItem => {
+const mapNativeToAlarm = (row: AlarmNative, zone?: GeoFenceZoneEntity): AlarmItem => {
   const repeatDays = decodeWeekdays(row.repeat_days);
   const base = {
     hour: row.hour,
@@ -49,13 +49,26 @@ const mapNativeToAlarm = (row: AlarmNative): AlarmItem => {
     ? row.next_trigger_at ?? computeNextTrigger(base).valueOf()
     : null;
 
-  return {
+  const alarm: AlarmItem = {
     id: row.id,
     enabled,
     nextTriggerAt,
     alarmSetId: row.alarm_set_id ?? null,
     ...base,
   };
+  if (zone) {
+    alarm.geofenceLocation = {
+      latitude: zone.latitude,
+      longitude: zone.longitude,
+      radius: zone.radius,
+      placeName: zone.name ?? undefined,
+      address: zone.name ?? undefined,
+    };
+  } else {
+    alarm.geofenceLocation = null;
+  }
+
+  return alarm;
 };
 
 const serializePolicyPayload = (payload: AlarmPolicyPayload): string | null => {
@@ -89,8 +102,17 @@ const nextTriggerForPersist = (alarm: PersistableAlarm): number | null => {
 };
 
 export const fetchAlarms = async (): Promise<AlarmItem[]> => {
-  const rows = await localDatabase.fetchAlarms();
-  return rows.map(mapNativeToAlarm);
+  const [rows, zones] = await Promise.all([
+    localDatabase.fetchAlarms(),
+    localDatabase.fetchGeoFenceZones(),
+  ]);
+  const zoneMap = new Map<string, GeoFenceZoneEntity>();
+  zones.forEach(zone => {
+    if (zone.alarm_id) {
+      zoneMap.set(zone.alarm_id, zone);
+    }
+  });
+  return rows.map(row => mapNativeToAlarm(row, zoneMap.get(row.id)));
 };
 
 export type PersistableAlarm = {

@@ -13,6 +13,7 @@ class AlarmEnginePackage : ReactPackage {
             RingtonePickerModule(reactContext),
             LocalDatabaseModule(reactContext),
             AlarmMissionBridgeModule(reactContext),
+            GeofencingModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()

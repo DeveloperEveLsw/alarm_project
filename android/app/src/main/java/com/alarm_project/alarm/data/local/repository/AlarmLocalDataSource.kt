@@ -7,6 +7,9 @@ import com.alarm_project.alarm.data.local.entity.AlarmSetEntity
 import com.alarm_project.alarm.data.local.entity.AlarmSetTemplateEntity
 import com.alarm_project.alarm.data.local.entity.AlarmTemplateEntity
 import com.alarm_project.alarm.data.local.entity.DDayEntity
+import com.alarm_project.alarm.data.local.entity.GeoFenceHistoryEntity
+import com.alarm_project.alarm.data.local.entity.GeoFenceZoneEntity
+import com.alarm_project.alarm.data.local.entity.GeoFenceZoneWithHistory
 import com.alarm_project.alarm.data.local.entity.TodoAlarmRelationEntity
 import com.alarm_project.alarm.data.local.entity.TodoEntity
 import kotlinx.coroutines.CoroutineDispatcher
@@ -28,6 +31,8 @@ class AlarmLocalDataSource(
     private val todoAlarmRelationDao = database.todoAlarmRelationDao()
     private val alarmSetTemplateDao = database.alarmSetTemplateDao()
     private val alarmTemplateDao = database.alarmTemplateDao()
+    private val geoFenceZoneDao = database.geoFenceZoneDao()
+    private val geoFenceHistoryDao = database.geoFenceHistoryDao()
 
     fun observeTodos(): Flow<List<TodoEntity>> = todoDao.observeAll()
     fun observeAlarms(): Flow<List<AlarmEntity>> = alarmDao.observeAll()
@@ -39,6 +44,7 @@ class AlarmLocalDataSource(
         alarmSetTemplateDao.observeAll()
     fun observeAlarmTemplates(templateId: String): Flow<List<AlarmTemplateEntity>> =
         alarmTemplateDao.observeByTemplateId(templateId)
+    fun observeGeoFenceZones(): Flow<List<GeoFenceZoneEntity>> = geoFenceZoneDao.observeAll()
 
     suspend fun getTodos(): List<TodoEntity> = withContext(ioDispatcher) { todoDao.getAll() }
 
@@ -59,6 +65,24 @@ class AlarmLocalDataSource(
 
     suspend fun getAlarmTemplates(templateId: String): List<AlarmTemplateEntity> =
         withContext(ioDispatcher) { alarmTemplateDao.getByTemplateId(templateId) }
+
+    suspend fun getGeoFenceZone(id: Long): GeoFenceZoneEntity? =
+        withContext(ioDispatcher) { geoFenceZoneDao.findById(id) }
+
+    suspend fun getGeoFenceZoneByAlarm(alarmId: String): GeoFenceZoneEntity? =
+        withContext(ioDispatcher) { geoFenceZoneDao.findByAlarmId(alarmId) }
+
+    suspend fun getActiveGeoFenceZones(): List<GeoFenceZoneEntity> =
+        withContext(ioDispatcher) { geoFenceZoneDao.getActiveZones() }
+
+    suspend fun getGeoFenceZones(): List<GeoFenceZoneEntity> =
+        withContext(ioDispatcher) { geoFenceZoneDao.getAll() }
+
+    suspend fun getGeoFenceZoneWithHistory(id: Long): GeoFenceZoneWithHistory? =
+        withContext(ioDispatcher) { geoFenceZoneDao.getZoneWithHistory(id) }
+
+    suspend fun getGeoFenceHistories(): List<GeoFenceHistoryEntity> =
+        withContext(ioDispatcher) { geoFenceHistoryDao.getAll() }
 
     suspend fun upsertTodo(entity: TodoEntity): Long = withContext(ioDispatcher) {
         todoDao.upsert(entity)
@@ -155,4 +179,35 @@ class AlarmLocalDataSource(
         withContext(ioDispatcher) {
             alarmDao.updateState(alarmId, enabled, nextTriggerAt)
         }
+
+    suspend fun insertGeoFenceZone(zone: GeoFenceZoneEntity): Long = withContext(ioDispatcher) {
+        geoFenceZoneDao.insert(zone)
+    }
+
+    suspend fun updateGeoFenceZone(zone: GeoFenceZoneEntity) = withContext(ioDispatcher) {
+        geoFenceZoneDao.update(zone)
+    }
+
+    suspend fun deleteGeoFenceZoneByAlarm(alarmId: String) = withContext(ioDispatcher) {
+        geoFenceZoneDao.deleteByAlarmId(alarmId)
+    }
+
+    suspend fun deleteGeoFenceZone(zone: GeoFenceZoneEntity) = withContext(ioDispatcher) {
+        geoFenceZoneDao.delete(zone)
+    }
+
+    suspend fun setGeoFenceZoneActive(id: Long, active: Boolean) = withContext(ioDispatcher) {
+        geoFenceZoneDao.updateActive(id, active)
+    }
+
+    suspend fun insertGeoFenceHistory(entry: GeoFenceHistoryEntity): Long = withContext(ioDispatcher) {
+        geoFenceHistoryDao.insert(entry)
+    }
+
+    suspend fun latestGeoFenceStates(zoneId: Long, limit: Int = 1) =
+        withContext(ioDispatcher) { geoFenceHistoryDao.getLatestByZone(zoneId, limit) }
+
+    suspend fun clearHistoryForZone(zoneId: Long) = withContext(ioDispatcher) {
+        geoFenceHistoryDao.deleteByZone(zoneId)
+    }
 }

@@ -64,6 +64,8 @@ export interface AlarmSetTemplateDaoContract {
   update(entity: RoomEntities.AlarmSetTemplateEntity): Promise<void>;
   // @Delete
   delete(entity: RoomEntities.AlarmSetTemplateEntity): Promise<void>;
+  // @Query("DELETE FROM AlarmSetTemplate WHERE id = :id")
+  deleteById(id: string): Promise<void>;
 }
 
 // Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/AlarmTemplateDao.kt
@@ -82,22 +84,78 @@ export interface AlarmTemplateDaoContract {
   deleteByTemplateId(templateId: string): Promise<void>;
 }
 
+// Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/CategoryDao.kt
+export interface CategoryDaoContract {
+  // @Query("SELECT * FROM Category ORDER BY id ASC")
+  observeAll(): RoomFlow<RoomEntities.CategoryEntity[]>;
+  // @Query("SELECT * FROM Category ORDER BY id ASC")
+  getAll(): Promise<RoomEntities.CategoryEntity[]>;
+  // @Insert(onConflict = OnConflictStrategy.REPLACE)
+  upsert(entity: RoomEntities.CategoryEntity): Promise<number>;
+  // @Insert(onConflict = OnConflictStrategy.REPLACE)
+  upsertAll(entities: RoomEntities.CategoryEntity[]): Promise<void>;
+  // @Update
+  update(entity: RoomEntities.CategoryEntity): Promise<void>;
+  // @Delete
+  delete(entity: RoomEntities.CategoryEntity): Promise<void>;
+  // @Query("DELETE FROM Category WHERE id = :id")
+  deleteById(id: number): Promise<void>;
+}
+
 // Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/DDayDao.kt
 export interface DDayDaoContract {
   // @Query("SELECT * FROM Dday ORDER BY target_date ASC")
-  observeAll(): RoomFlow<RoomEntities.DdayEntity[]>;
+  observeAll(): RoomFlow<RoomEntities.DDayEntity[]>;
   // @Query("SELECT * FROM Dday WHERE id = :id LIMIT 1")
-  findById(id: number): Promise<RoomEntities.DdayEntity | null>;
+  findById(id: number): Promise<RoomEntities.DDayEntity | null>;
   // @Insert(onConflict = OnConflictStrategy.REPLACE)
-  upsert(entity: RoomEntities.DdayEntity): Promise<number>;
+  upsert(entity: RoomEntities.DDayEntity): Promise<number>;
   // @Update
-  update(entity: RoomEntities.DdayEntity): Promise<void>;
+  update(entity: RoomEntities.DDayEntity): Promise<void>;
   // @Delete
-  delete(entity: RoomEntities.DdayEntity): Promise<void>;
+  delete(entity: RoomEntities.DDayEntity): Promise<void>;
   // @Query("DELETE FROM Dday WHERE id = :id")
   deleteById(id: number): Promise<void>;
   // @Query("SELECT * FROM Dday ORDER BY id ASC")
-  getAll(): Promise<RoomEntities.DdayEntity[]>;
+  getAll(): Promise<RoomEntities.DDayEntity[]>;
+}
+
+// Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/GeoFenceHistoryDao.kt
+export interface GeoFenceHistoryDaoContract {
+  // @Insert
+  insert(entry: RoomEntities.GeoFenceHistoryEntity): Promise<number>;
+  // @Query("SELECT * FROM GeoFenceHistory ORDER BY id DESC")
+  getAll(): Promise<RoomEntities.GeoFenceHistoryEntity[]>;
+  // @Query("SELECT * FROM GeoFenceHistory WHERE zone_id = :zoneId ORDER BY id DESC LIMIT :limit")
+  getLatestByZone(zoneId: number, limit: unknown): Promise<RoomEntities.GeoFenceHistoryEntity[]>;
+  // @Query("DELETE FROM GeoFenceHistory WHERE zone_id = :zoneId")
+  deleteByZone(zoneId: number): Promise<void>;
+}
+
+// Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/GeoFenceZoneDao.kt
+export interface GeoFenceZoneDaoContract {
+  // @Query("SELECT * FROM GeoFenceZone ORDER BY id DESC")
+  observeAll(): RoomFlow<RoomEntities.GeoFenceZoneEntity[]>;
+  // @Query("SELECT * FROM GeoFenceZone ORDER BY id DESC")
+  getAll(): Promise<RoomEntities.GeoFenceZoneEntity[]>;
+  // @Query("SELECT * FROM GeoFenceZone WHERE is_active = 1 ORDER BY id DESC")
+  getActiveZones(): Promise<RoomEntities.GeoFenceZoneEntity[]>;
+  // @Query("SELECT * FROM GeoFenceZone WHERE id = :id")
+  findById(id: number): Promise<RoomEntities.GeoFenceZoneEntity | null>;
+  // @Query("SELECT * FROM GeoFenceZone WHERE alarm_id = :alarmId LIMIT 1")
+  findByAlarmId(alarmId: string): Promise<RoomEntities.GeoFenceZoneEntity | null>;
+  // @Insert
+  insert(zone: RoomEntities.GeoFenceZoneEntity): Promise<number>;
+  // @Update
+  update(zone: RoomEntities.GeoFenceZoneEntity): Promise<void>;
+  // @Delete
+  delete(zone: RoomEntities.GeoFenceZoneEntity): Promise<void>;
+  // @Query("DELETE FROM GeoFenceZone WHERE alarm_id = :alarmId")
+  deleteByAlarmId(alarmId: string): Promise<void>;
+  // @Query("UPDATE GeoFenceZone SET is_active = :active WHERE id = :id")
+  updateActive(id: number, active: boolean): Promise<void>;
+  // @Query("SELECT * FROM GeoFenceZone WHERE id = :id")
+  getZoneWithHistory(id: number): Promise<unknown | null>;
 }
 
 // Source: android/app/src/main/java/com/alarm_project/alarm/data/local/dao/TodoAlarmRelationDao.kt

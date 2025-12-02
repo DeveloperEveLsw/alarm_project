@@ -93,4 +93,14 @@ class AlarmEngineModule(private val reactContext: ReactApplicationContext) : Rea
         runCatching { reactContext.unregisterReceiver(eventReceiver) }
         receiverRegistered = false
     }
+
+    @ReactMethod
+    fun addListener(@Suppress("UNUSED_PARAMETER") eventName: String) {
+        // Required for NativeEventEmitter support
+    }
+
+    @ReactMethod
+    fun removeListeners(@Suppress("UNUSED_PARAMETER") count: Double) {
+        // Required for NativeEventEmitter support
+    }
 }

@@ -9,7 +9,8 @@ import androidx.room.PrimaryKey
     tableName = "Alarm",
     indices = [
         Index(value = ["alarm_set_id"]),
-        Index(value = ["dday_id"])
+        Index(value = ["dday_id"]),
+        Index(value = ["category_id"]),
     ]
 )
 data class AlarmEntity(
@@ -20,6 +21,8 @@ data class AlarmEntity(
     val alarmSetId: String? = null,
     @ColumnInfo(name = "dday_id")
     val ddayId: Long? = null,
+    @ColumnInfo(name = "category_id")
+    val categoryId: Long? = null,
     @ColumnInfo(name = "label")
     val label: String = "",
     @ColumnInfo(name = "hour")

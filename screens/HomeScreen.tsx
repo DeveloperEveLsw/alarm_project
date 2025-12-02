@@ -37,6 +37,7 @@ const DEFAULT_SOUND = "Arcade";
 const selectHasExactAlarm = (state: AlarmPermissionState) => state.hasExactAlarm;
 const selectHasPostNotifications = (state: AlarmPermissionState) => state.hasPostNotifications;
 const selectHasVibrate = (state: AlarmPermissionState) => state.hasVibrate;
+const selectHasOverlay = (state: AlarmPermissionState) => state.hasOverlay;
 
 const createDefaultDraft = (): AlarmDraft => {
   const base = dayjs().add(1, "minute");
@@ -51,6 +52,7 @@ const createDefaultDraft = (): AlarmDraft => {
     policyMode: "normal",
     policyPayload: null,
     alarmSetId: null,
+    geofenceLocation: null,
   };
 };
 
@@ -66,6 +68,7 @@ const toDraft = (alarm: AlarmItem): AlarmDraft => ({
   policyMode: alarm.policyMode ?? "normal",
   policyPayload: alarm.policyPayload ?? null,
   alarmSetId: alarm.alarmSetId ?? null,
+  geofenceLocation: alarm.geofenceLocation ?? null,
 });
 
 type EditorState =
@@ -110,11 +113,13 @@ const HomeScreen: React.FC = () => {
   const hasExactAlarm = useAlarmPermissionsStore(selectHasExactAlarm);
   const hasPostNotifications = useAlarmPermissionsStore(selectHasPostNotifications);
   const hasVibrate = useAlarmPermissionsStore(selectHasVibrate);
+  const hasOverlayPermission = useAlarmPermissionsStore(selectHasOverlay);
   const {
     hydratePermissions,
     requestPostNotifications,
     requestVibrate,
     openExactAlarmSettings,
+    requestOverlayPermission,
   } = useAlarmPermissionsStore.getState();
 
 
@@ -157,15 +162,31 @@ const HomeScreen: React.FC = () => {
       }
     }
 
+    if (!hasOverlayPermission) {
+      const launched = await requestOverlayPermission();
+      if (!launched) {
+        Alert.alert("권한 필요", "헤드업 표시를 위해 \"다른 앱 위에 표시\" 권한이 필요합니다.");
+        return false;
+      }
+      await hydratePermissions();
+      const latestOverlay = useAlarmPermissionsStore.getState().hasOverlay;
+      if (!latestOverlay) {
+        Alert.alert("권한 필요", "설정에서 \"다른 앱 위에 표시\" 권한을 허용해 주세요.");
+        return false;
+      }
+    }
+
     return true;
   }, [
     hasExactAlarm,
     hasPostNotifications,
     hasVibrate,
+    hasOverlayPermission,
     hydratePermissions,
     openExactAlarmSettings,
     requestPostNotifications,
     requestVibrate,
+    requestOverlayPermission,
   ]);
 
   const invalidateAlarms = useCallback(

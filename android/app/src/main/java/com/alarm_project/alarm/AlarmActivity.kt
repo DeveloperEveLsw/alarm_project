@@ -17,9 +17,9 @@ import com.facebook.react.modules.core.DefaultHardwareBackBtnHandler
 class AlarmActivity : AppCompatActivity(), MissionCompletionListener, DefaultHardwareBackBtnHandler {
     private lateinit var dismissButton: Button
     private lateinit var snoozeButton: Button
-    private lateinit var messageView: TextView
     private lateinit var buttonGroup: View
     private lateinit var challengeContainer: FrameLayout
+    private lateinit var labelView: TextView
 
     private var alarmId: String? = null
     private var missionActive = false
@@ -34,17 +34,18 @@ class AlarmActivity : AppCompatActivity(), MissionCompletionListener, DefaultHar
 
         dismissButton = findViewById(R.id.alarmDismissButton)
         snoozeButton = findViewById(R.id.alarmSnoozeButton)
-        messageView = findViewById(R.id.alarmMessage)
         buttonGroup = findViewById(R.id.alarmButtonGroup)
         challengeContainer = findViewById(R.id.alarmChallengeContainer)
+
+        labelView = findViewById(R.id.alarmLabel)
 
         alarmId = intent.getStringExtra("alarm_id")
         val currentAlarmId = alarmId ?: run {
             finish()
             return
         }
-
-        messageView.text = getString(R.string.alarm_running_message)
+        val alarmLabel = intent.getStringExtra("alarm_label")
+        labelView.text = alarmLabel?.takeIf { it.isNotBlank() } ?: getString(R.string.alarm_default_label)
 
         dismissButton.setOnClickListener {
             AlarmEngineModuleHelper.sendDismiss(this, currentAlarmId)
@@ -68,6 +69,11 @@ class AlarmActivity : AppCompatActivity(), MissionCompletionListener, DefaultHar
         intent ?: return
         val newAlarmId = intent.getStringExtra("alarm_id") ?: return
         alarmId = newAlarmId
+        intent.getStringExtra("alarm_label")?.let { label ->
+            if (label.isNotBlank()) {
+                labelView.text = label
+            }
+        }
         val requiresChallenge = intent.getBooleanExtra(AlarmConstants.EXTRA_REQUIRES_CHALLENGE, false)
         if (requiresChallenge) {
             startMissionInterface(newAlarmId, intent)
