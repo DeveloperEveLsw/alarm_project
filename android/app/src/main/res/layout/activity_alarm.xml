@@ -16,7 +16,6 @@
         android:textColor="#CBD5F5"
         android:textStyle="bold"
         android:letterSpacing="0.05"
-        android:drawablePadding="8dp"
         android:textAlignment="center"
         android:layout_marginBottom="12dp" />
 
@@ -42,32 +41,48 @@
         android:textSize="20sp"
         android:letterSpacing="0.02"
         android:textAlignment="center"
-        android:layout_marginBottom="48dp"
+        android:layout_marginBottom="32dp"
         android:text="" />
 
-    <Button
-        android:id="@+id/alarmSnoozeButton"
+    <FrameLayout
+        android:id="@+id/alarmChallengeContainer"
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:text="다시 울리기"
-        android:textAllCaps="false"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:textColor="#1F2937"
-        android:background="@drawable/bg_alarm_snooze_button"
-        android:layout_marginBottom="16dp"
-        android:stateListAnimator="@null" />
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone"
+        android:background="#0F172A"
+        android:layout_marginBottom="24dp" />
 
-    <Button
-        android:id="@+id/alarmDismissButton"
+    <LinearLayout
+        android:id="@+id/alarmButtonGroup"
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:text="알람 끄기"
-        android:textAllCaps="false"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:textColor="#F8FAFC"
-        android:background="@drawable/bg_alarm_stop_button"
-        android:stateListAnimator="@null" />
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <Button
+            android:id="@+id/alarmSnoozeButton"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="다시 울리기"
+            android:textAllCaps="false"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#1F2937"
+            android:background="@drawable/bg_alarm_snooze_button"
+            android:layout_marginBottom="16dp"
+            android:stateListAnimator="@null" />
+
+        <Button
+            android:id="@+id/alarmDismissButton"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="알람 끄기"
+            android:textAllCaps="false"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#F8FAFC"
+            android:background="@drawable/bg_alarm_stop_button"
+            android:stateListAnimator="@null" />
+    </LinearLayout>
 
 </LinearLayout>

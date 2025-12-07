@@ -43,6 +43,14 @@ const buildAlarmSpec = (alarm: AlarmItem, nextFireAt: number): AlarmSpec => {
     alarm.policyPayload && typeof alarm.policyPayload === "object"
       ? (alarm.policyPayload as Partial<AlarmSpec["policy"]>)
       : {};
+  let serializedPolicyPayload: string | null = null;
+  if (alarm.policyPayload) {
+    try {
+      serializedPolicyPayload = JSON.stringify(alarm.policyPayload);
+    } catch (error) {
+      console.warn("[AlarmService] Failed to serialize policy payload", error);
+    }
+  }
 
   return {
     id: alarm.id,
@@ -54,6 +62,7 @@ const buildAlarmSpec = (alarm: AlarmItem, nextFireAt: number): AlarmSpec => {
     label: alarm.label || undefined,
     allowWhileIdle: true,
     channel: "alarms",
+    payload: serializedPolicyPayload ? { policy_payload: serializedPolicyPayload } : undefined,
     metadata: {
       localTime: `${String(alarm.hour).padStart(2, "0")}:${String(alarm.minute).padStart(2, "0")}`,
       repeatDays: alarm.repeatDays.join(","),
@@ -61,6 +70,7 @@ const buildAlarmSpec = (alarm: AlarmItem, nextFireAt: number): AlarmSpec => {
       sound: alarm.sound,
       vibrate: String(alarm.vibrate),
       policyMode: alarm.policyMode ?? "normal",
+      ...(serializedPolicyPayload ? { policy_payload: serializedPolicyPayload } : {}),
     },
   };
 };

@@ -18,14 +18,34 @@ import DDayScreen from './screens/DDayScreen';
 import AlarmPermissionsScreen from './screens/AlarmPermissionsScreen';
 import AlarmMathScreen from './screens/AlarmMathScreen';
 import AlarmShakeScreen from './screens/AlarmShakeScreen';
+import AlarmPuzzleScreen from './screens/AlarmPuzzleScreen';
 import { AlarmEngine } from './alarm/engine';
 import { useAlarmPermissionsStore } from './stores/alarmPermissionsStore';
 import { RootStackParamList } from './types/navigation.types';
+import { getRandomShakeTarget } from './utils/shakeTarget';
+import type { PuzzleDifficulty } from './types/puzzle.types';
 
 dayjs.locale('ko');
 
 const queryClient = new QueryClient();
 const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+const sanitizePuzzleSize = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const rounded = Math.round(value);
+    if (rounded >= 3 && rounded <= 6) {
+      return rounded;
+    }
+  }
+  return 4;
+};
+
+const sanitizePuzzleDifficulty = (value: unknown): PuzzleDifficulty => {
+  if (value === 'easy' || value === 'medium' || value === 'hard') {
+    return value;
+  }
+  return 'medium';
+};
 
 function MainTab() {
   const Tab = createBottomTabNavigator();
@@ -70,6 +90,49 @@ function App() {
     });
   }, [hydratePermissions]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const unsubscribe = AlarmEngine.addListener(async event => {
+      if (!navigationRef.isReady()) {
+        return;
+      }
+
+      switch (event.type) {
+        case 'FIRED': {
+          await AlarmEngine.send({ type: 'RING_NATIVE', id: event.id, fullScreen: true }).catch(console.error);
+          const mode = event.ctx.policy.mode;
+          if (mode === 'math') {
+            navigationRef.navigate('AlarmMath', { alarmId: event.id, seed: Date.now() });
+          } else if (mode === 'shake') {
+            const targetShakes = getRandomShakeTarget();
+            navigationRef.navigate('AlarmShake', { alarmId: event.id, targetShakes });
+          } else if (mode === 'puzzle') {
+            const policy = event.ctx.policy as Record<string, unknown>;
+            const puzzleSize = sanitizePuzzleSize(policy.size);
+            const puzzleDifficulty = sanitizePuzzleDifficulty(policy.difficulty);
+            navigationRef.navigate('AlarmPuzzle', {
+              alarmId: event.id,
+              size: puzzleSize,
+              difficulty: puzzleDifficulty,
+              seed: Date.now(),
+            });
+          } else {
+            navigationRef.navigate('Alarm', { alarmId: event.id });
+          }
+          break;
+        }
+        case 'ERROR':
+          console.warn(`[AlarmEngine] ${event.code}: ${event.message}`);
+          break;
+        default:
+          break;
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
@@ -100,6 +163,11 @@ function App() {
               <Stack.Screen
                 name="AlarmShake"
                 component={AlarmShakeScreen}
+                options={{ headerShown: false, presentation: 'fullScreenModal' }}
+              />
+              <Stack.Screen
+                name="AlarmPuzzle"
+                component={AlarmPuzzleScreen}
                 options={{ headerShown: false, presentation: 'fullScreenModal' }}
               />
             </Stack.Navigator>

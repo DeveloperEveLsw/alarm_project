@@ -12,6 +12,7 @@ class AlarmEnginePackage : ReactPackage {
             PermissionModule(reactContext),
             RingtonePickerModule(reactContext),
             LocalDatabaseModule(reactContext),
+            AlarmMissionBridgeModule(reactContext),
             GeofencingModule(reactContext),
         )
 

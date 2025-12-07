@@ -11,7 +11,7 @@ import { decodeWeekdays } from '../../utils/repeatMask';
 const DEFAULT_POLICY_MODE: AlarmPolicyMode = 'normal';
 
 const parsePolicyMode = (value: unknown): AlarmPolicyMode => {
-  if (value === 'math' || value === 'shake' || value === 'normal') {
+  if (value === 'math' || value === 'shake' || value === 'puzzle' || value === 'normal') {
     return value;
   }
   return DEFAULT_POLICY_MODE;

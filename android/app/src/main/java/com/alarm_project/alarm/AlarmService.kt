@@ -17,6 +17,8 @@ import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.alarm_project.MainActivity
 import android.util.Log
+import java.util.ArrayList
+import java.util.Locale
 
 class AlarmService : Service() {
     private var currentSpec: AlarmSpec? = null
@@ -56,7 +58,8 @@ class AlarmService : Service() {
 
         val lockStateSnapshot = ContextSnapshotBuilder(this).getLockStateSnapshot()
         lastLockState = lockStateSnapshot
-        val shouldLaunchFullScreen = shouldForceFullScreen(lockStateSnapshot)
+        val requiresChallenge = requiresChallenge(spec)
+        val shouldLaunchFullScreen = requiresChallenge || shouldForceFullScreen(lockStateSnapshot)
 
         startRinging(spec, shouldLaunchFullScreen, null, lockStateSnapshot)
     }
@@ -246,11 +249,21 @@ class AlarmService : Service() {
     }
 
     private fun buildAlarmActivityIntent(spec: AlarmSpec): Intent {
+        val requiresChallenge = requiresChallenge(spec)
         return Intent(this, AlarmActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION
             putExtra("alarm_id", spec.id)
             putExtra("alarm_fire_at", spec.fireAt)
+            putExtra(AlarmConstants.EXTRA_REQUIRES_CHALLENGE, requiresChallenge)
             spec.label?.let { putExtra("alarm_label", it) }
+            if (requiresChallenge) {
+                putExtra("policy_mode", spec.policy.mode.name.lowercase(Locale.US))
+                val policyPayload = spec.metadata?.get("policy_payload") ?: spec.payload?.get("policy_payload")
+                policyPayload?.let { putExtra("policy_payload", it) }
+                spec.policy.snoozeMinutes?.let { minutes ->
+                    putIntegerArrayListExtra("policy_snooze_minutes", ArrayList(minutes))
+                }
+            }
         }
     }
 
@@ -259,6 +272,20 @@ class AlarmService : Service() {
         val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
         if (resolveInfo != null) {
             startActivity(intent)
+        }
+    }
+
+    private fun requiresChallenge(spec: AlarmSpec): Boolean {
+        return when (spec.policy.mode) {
+            AlarmMode.MATH,
+            AlarmMode.SHAKE,
+            AlarmMode.PUZZLE -> true
+            else -> {
+                val metaMode = spec.metadata?.get("policyMode")
+                metaMode.equals("math", ignoreCase = true) ||
+                    metaMode.equals("shake", ignoreCase = true) ||
+                    metaMode.equals("puzzle", ignoreCase = true)
+            }
         }
     }
 

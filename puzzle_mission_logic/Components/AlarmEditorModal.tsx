@@ -16,9 +16,6 @@ import { computeNextTrigger } from "../services/alarm/alarmService";
 import { pickAlarmTone } from "../services/ringtonePicker";
 import type { Operator } from "../services/mathExpressions";
 import { DEFAULT_SHAKE_TARGET_MAX, DEFAULT_SHAKE_TARGET_MIN, sanitizeShakeTarget } from "../utils/shakeTarget";
-import LocationPicker from "./LocationPicker";
-import CategorySelector from "./CategorySelector";
-import type { Category } from "../types/category.types";
 
 const WEEK_LABELS: Record<AlarmRepeatDay, string> = {
   0: "일",
@@ -64,8 +61,6 @@ type Props = {
   draft: AlarmDraft;
   onSave: (value: AlarmDraft) => void;
   onCancel: () => void;
-  categories: Category[];
-  onCreateCategory: (name: string) => Promise<Category>;
 };
 
 const DIFFICULTY_PRESETS: Record<Exclude<MissionDifficulty, "custom">, Pick<MathMissionFormState, "termCount" | "includeMultiplication" | "maxAttempts" | "presencePenalty" | "frequencyPenalty">> = {
@@ -85,9 +80,6 @@ const buildInitialState = (draft: AlarmDraft) => ({
   minute: draft.minute,
   policyMode: draft.policyMode ?? "normal",
   policyPayload: draft.policyPayload ?? null,
-  alarmSetId: draft.alarmSetId ?? null,
-  geofenceLocation: draft.geofenceLocation ?? null,
-  categoryId: draft.categoryId ?? null,
 });
 
 const defaultMathFormState = (): MathMissionFormState => ({
@@ -329,14 +321,7 @@ const to24Hour = (displayHour: number, isMorning: boolean): number => {
   return normalized === 12 ? 12 : normalized + 12;
 };
 
-const AlarmEditorModal: React.FC<Props> = ({
-  visible,
-  draft,
-  onSave,
-  onCancel,
-  categories,
-  onCreateCategory,
-}) => {
+const AlarmEditorModal: React.FC<Props> = ({ visible, draft, onSave, onCancel }) => {
   const [state, setState] = useState(() => buildInitialState(draft));
   const [isMorning, setIsMorning] = useState(() => toIsMorning(draft.hour));
   const [mathForm, setMathForm] = useState<MathMissionFormState>(() =>
@@ -348,7 +333,6 @@ const AlarmEditorModal: React.FC<Props> = ({
   const [puzzleForm, setPuzzleForm] = useState<PuzzleMissionFormState>(() =>
     draft.policyMode === "puzzle" ? buildPuzzleFormFromPayload(draft.policyPayload) : defaultPuzzleFormState(),
   );
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   useEffect(() => {
     setState(buildInitialState(draft));
@@ -357,14 +341,6 @@ const AlarmEditorModal: React.FC<Props> = ({
     setShakeForm(draft.policyMode === "shake" ? buildShakeFormFromPayload(draft.policyPayload) : defaultShakeFormState());
     setPuzzleForm(draft.policyMode === "puzzle" ? buildPuzzleFormFromPayload(draft.policyPayload) : defaultPuzzleFormState());
   }, [draft]);
-
-  const periodData = useMemo(
-    () => [
-      { label: "오전", value: "am" },
-      { label: "오후", value: "pm" },
-    ],
-    [],
-  );
 
   const hourData = useMemo(
     () =>
@@ -451,26 +427,6 @@ const AlarmEditorModal: React.FC<Props> = ({
     setPuzzleForm(prev => ({ ...prev, difficulty: value }));
   }, []);
 
-  const handleLocationSelected = useCallback((location: {
-    latitude: number;
-    longitude: number;
-    radius: number;
-    address: string;
-    placeName: string;
-  }) => {
-    setState(prev => ({
-      ...prev,
-      geofenceLocation: {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        radius: location.radius,
-        address: location.address,
-        placeName: location.placeName,
-      },
-    }));
-    setShowLocationPicker(false);
-  }, []);
-
   const soundLabel = useMemo(() => {
     if (!state.sound) return "기본 알람음";
     if (state.sound.startsWith("content://") || state.sound.startsWith("file://")) {
@@ -478,13 +434,6 @@ const AlarmEditorModal: React.FC<Props> = ({
     }
     return state.sound;
   }, [state.sound]);
-
-  const locationSummary = useMemo(() => {
-    if (!state.geofenceLocation) return "위치를 선택하세요";
-    const { placeName, latitude, longitude } = state.geofenceLocation;
-    const coords = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-    return placeName ? `${placeName} · ${coords}` : coords;
-  }, [state.geofenceLocation]);
 
   const nextTriggerLabel = useMemo(() => {
     const next = computeNextTrigger({
@@ -521,13 +470,6 @@ const AlarmEditorModal: React.FC<Props> = ({
     setState(prev => ({ ...prev, minute }));
   }, []);
 
-  const handleCategoryChange = useCallback((categoryId: number | null) => {
-    setState(prev => ({
-      ...prev,
-      categoryId,
-    }));
-  }, []);
-
   const handleSave = useCallback(() => {
     const trimmedLabel = state.label.trim();
     const missionMode: AlarmPolicyMode = state.policyMode ?? "normal";
@@ -552,12 +494,9 @@ const AlarmEditorModal: React.FC<Props> = ({
       vibrate: state.vibrate,
       policyMode: missionMode,
       policyPayload: missionPayload,
-      alarmSetId: state.alarmSetId ?? null,
-      geofenceLocation: state.geofenceLocation ?? null,
-      categoryId: state.categoryId ?? null,
     };
     onSave(payload);
-  }, [mathForm, onSave, puzzleForm, shakeForm, state]);
+  }, [mathForm, onSave, shakeForm, state]);
 
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onCancel}>
@@ -565,34 +504,37 @@ const AlarmEditorModal: React.FC<Props> = ({
         <View style={styles.card}>
           <Text style={styles.title}>알람 설정</Text>
           <View style={styles.timePickerRow}>
-            <WheelPicker
-              data={periodData}
-              value={isMorning ? "am" : "pm"}
-              onValueChanged={({ item }) => setIsMorning(item.value === "am")}
-              style={[styles.wheel, styles.periodWheel]}
-              visibleItemCount={3}
-              itemTextStyle={styles.wheelText}
-            />
-            <View style={styles.wheelSpacer} />
-            <WheelPicker
-              data={hourData}
-              value={toDisplayHour(state.hour)}
-              onValueChanged={({ item }) => handleHourChange(item.value as number)}
-              style={styles.wheel}
-              visibleItemCount={3}
-              itemTextStyle={styles.wheelText}
-            />
-            <View style={styles.wheelSpacer} />
+            <View style={styles.periodColumn}>
+              {(["오전", "오후"] as const).map(label => {
+                const selected = (label === "오전" && isMorning) || (label === "오후" && !isMorning);
+                return (
+                  <Pressable
+                    key={label}
+                    onPress={() => setIsMorning(label === "오전")}
+                    style={[styles.periodButton, selected && styles.periodButtonActive]}
+                  >
+                    <Text style={[styles.periodLabel, selected && styles.periodLabelActive]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.wheelColumn}>
+              <WheelPicker
+                data={hourData}
+                value={toDisplayHour(state.hour)}
+                onValueChanged={({ item }) => handleHourChange(item.value as number)}
+                style={styles.wheel}
+              />
+            </View>
             <Text style={styles.timeColon}>:</Text>
-            <View style={styles.wheelSpacer} />
-            <WheelPicker
-              data={minuteData}
-              value={state.minute}
-              onValueChanged={({ item }) => handleMinuteChange(item.value as number)}
-              style={styles.wheel}
-              visibleItemCount={3}
-              itemTextStyle={styles.wheelText}
-            />
+            <View style={styles.wheelColumn}>
+              <WheelPicker
+                data={minuteData}
+                value={state.minute}
+                onValueChanged={({ item }) => handleMinuteChange(item.value as number)}
+                style={styles.wheel}
+              />
+            </View>
           </View>
 
           <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -608,16 +550,6 @@ const AlarmEditorModal: React.FC<Props> = ({
                 onChangeText={text => setState(prev => ({ ...prev, label: text }))}
                 placeholder="알람 이름"
                 style={styles.textInput}
-              />
-            </View>
-
-            <View style={styles.section}>
-              <CategorySelector
-                categories={categories}
-                value={state.categoryId ?? null}
-                onChange={handleCategoryChange}
-                onCreateCategory={onCreateCategory}
-                label="카테고리"
               />
             </View>
 
@@ -667,25 +599,6 @@ const AlarmEditorModal: React.FC<Props> = ({
                 value={state.vibrate}
                 onValueChange={value => setState(prev => ({ ...prev, vibrate: value }))}
               />
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>지오펜싱 위치</Text>
-              <Text style={styles.helperText}>해당 위치 반경 {state.geofenceLocation?.radius ?? 100}m</Text>
-              <Pressable style={styles.locationCard} onPress={() => setShowLocationPicker(true)}>
-                <Text style={styles.locationCardTitle}>
-                  {state.geofenceLocation?.placeName ?? "위치 선택"}
-                </Text>
-                <Text style={styles.locationCardValue}>{locationSummary}</Text>
-              </Pressable>
-              {state.geofenceLocation && (
-                <Pressable
-                  style={styles.locationResetButton}
-                  onPress={() => setState(prev => ({ ...prev, geofenceLocation: null }))}
-                >
-                  <Text style={styles.locationResetText}>위치 제거</Text>
-                </Pressable>
-              )}
             </View>
 
             <View style={styles.separator} />
@@ -854,23 +767,24 @@ const AlarmEditorModal: React.FC<Props> = ({
             {state.policyMode === "shake" ? (
               <View style={styles.missionCard}>
                 <Text style={styles.missionTitle}>흔들기 미션 설정</Text>
-                <View style={styles.missionFieldGrid}>
-                  <View style={styles.missionField}>
-                    <Text style={styles.sectionLabel}>목표 횟수</Text>
-                    <TextInput
-                      style={styles.missionInput}
-                      keyboardType="number-pad"
-                      value={shakeForm.targetShakes}
-                      onChangeText={value => handleShakeFieldChange("targetShakes", value)}
-                      placeholder="20"
-                    />
-                  </View>
-                  <View style={[styles.missionField, styles.missionFieldLast]}>
-                    <Text style={styles.sectionLabel}>간격 (ms)</Text>
-                    <TextInput
-                      style={styles.missionInput}
-                      keyboardType="number-pad"
-                      value={shakeForm.intervalMs}
+
+              <View style={styles.missionFieldGrid}>
+                <View style={styles.missionField}>
+                  <Text style={styles.sectionLabel}>목표 횟수</Text>
+                  <TextInput
+                    style={styles.missionInput}
+                    keyboardType="number-pad"
+                    value={shakeForm.targetShakes}
+                    onChangeText={value => handleShakeFieldChange("targetShakes", value)}
+                    placeholder="20"
+                  />
+                </View>
+                <View style={[styles.missionField, styles.missionFieldLast]}>
+                  <Text style={styles.sectionLabel}>간격 (ms)</Text>
+                  <TextInput
+                    style={styles.missionInput}
+                    keyboardType="number-pad"
+                    value={shakeForm.intervalMs}
                       onChangeText={value => handleShakeFieldChange("intervalMs", value)}
                       placeholder="350"
                     />
@@ -927,9 +841,7 @@ const AlarmEditorModal: React.FC<Props> = ({
                         onPress={() => handlePuzzleSizeChange(value)}
                         style={[styles.pillButton, active && styles.pillButtonActive]}
                       >
-                        <Text style={[styles.pillButtonLabel, active && styles.pillButtonLabelActive]}>
-                          {value} x {value}
-                        </Text>
+                        <Text style={[styles.pillButtonLabel, active && styles.pillButtonLabelActive]}>{value} x {value}</Text>
                       </Pressable>
                     );
                   })}
@@ -953,23 +865,18 @@ const AlarmEditorModal: React.FC<Props> = ({
                 <Text style={styles.helperText}>조각 수와 힌트/제한 시간이 난이도에 맞춰 자동 조정됩니다.</Text>
               </View>
             ) : null}
-          </ScrollView>
+        </ScrollView>
 
-          <View style={styles.actions}>
-            <Pressable style={styles.actionButton} onPress={onCancel}>
-              <Text style={styles.actionLabel}>취소</Text>
-            </Pressable>
-            <Pressable style={[styles.actionButton, styles.primaryActionButton]} onPress={handleSave}>
-              <Text style={[styles.actionLabel, styles.primaryActionLabel]}>저장</Text>
-            </Pressable>
-          </View>
+        <View style={styles.actions}>
+          <Pressable style={styles.actionButton} onPress={onCancel}>
+            <Text style={styles.actionLabel}>취소</Text>
+          </Pressable>
+          <Pressable style={[styles.actionButton, styles.primaryActionButton]} onPress={handleSave}>
+            <Text style={[styles.actionLabel, styles.primaryActionLabel]}>저장</Text>
+          </Pressable>
+        </View>
         </View>
       </View>
-      <LocationPicker
-        visible={showLocationPicker}
-        onLocationSelect={handleLocationSelected}
-        onCancel={() => setShowLocationPicker(false)}
-      />
     </Modal>
   );
 };
@@ -1001,25 +908,43 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 12,
   },
-  wheel: {
-    width: 88,
+  periodColumn: {
+    marginRight: 12,
+    justifyContent: "center",
+  },
+  periodButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    marginBottom: 8,
+  },
+  periodButtonActive: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  periodLabel: {
+    fontSize: 14,
+    color: "#374151",
+    textAlign: "center",
+  },
+  periodLabelActive: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  wheelColumn: {
+    width: 80,
     height: 160,
   },
-  periodWheel: {
-    width: 72,
-  },
-  wheelSpacer: {
-    width: 12,
-  },
-  wheelText: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: "#111827",
+  wheel: {
+    width: "100%",
+    height: "100%",
   },
   timeColon: {
-    fontSize: 34,
-    fontWeight: "700",
-    color: "#111827",
+    fontSize: 32,
+    fontWeight: "600",
+    marginHorizontal: 8,
   },
   scrollContent: {
     paddingBottom: 16,
@@ -1147,8 +1072,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#cbd5f5",
     backgroundColor: "#e2e8f0",
-    marginRight: 8,
-    marginBottom: 8,
   },
   pillButtonActive: {
     backgroundColor: "#2563eb",
@@ -1201,38 +1124,6 @@ const styles = StyleSheet.create({
   },
   missionWeightFieldLast: {
     marginRight: 0,
-  },
-  locationCard: {
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: "#f9fafb",
-  },
-  locationCardTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  locationCardValue: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "#4b5563",
-  },
-  locationResetButton: {
-    marginTop: 8,
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: "#fee2e2",
-  },
-  locationResetText: {
-    fontSize: 12,
-    color: "#b91c1c",
-    fontWeight: "600",
   },
   actions: {
     marginTop: 20,

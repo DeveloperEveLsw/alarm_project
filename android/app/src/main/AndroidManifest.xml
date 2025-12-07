@@ -47,6 +47,15 @@
         android:excludeFromRecents="true"
         android:theme="@style/AppTheme" />
 
+      <activity
+        android:name=".alarm.AlarmChallengeActivity"
+        android:exported="false"
+        android:launchMode="singleTask"
+        android:showWhenLocked="true"
+        android:turnScreenOn="true"
+        android:excludeFromRecents="true"
+        android:theme="@style/AppTheme" />
+
       <receiver
         android:name=".alarm.AlarmReceiver"
         android:exported="false" />
