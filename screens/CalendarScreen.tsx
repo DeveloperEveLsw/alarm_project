@@ -33,6 +33,8 @@ import WheelPicker from '@quidone/react-native-wheel-picker';
 import { categoryService } from '../services/categoryService';
 import type { Category } from '../types/category.types';
 import { useAuthStore } from '../stores/authStore';
+import { useBackupAction } from '../hooks/useBackupAction';
+import { useRestoreAction } from '../hooks/useRestoreAction';
 
 const SCROLL_RANGE = 50;
 
@@ -174,6 +176,8 @@ const CalendarScreen: React.FC = () => {
   const loginWithGoogle = useAuthStore(state => state.loginWithGoogle);
   const logout = useAuthStore(state => state.logout);
   const isLoggingIn = useAuthStore(state => state.isLoggingIn);
+  const { startBackup: handleBackup, isBackingUp } = useBackupAction();
+  const { startRestore, isRestoring } = useRestoreAction();
   const userProfile = useMemo(() => {
     if (!user) return null;
     const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
@@ -415,13 +419,6 @@ const CalendarScreen: React.FC = () => {
       useNativeDriver: true,
     }).start(() => setMenuVisible(false));
   }, [menuAnimation]);
-  const handleBackup = useCallback(() => {
-    console.log('[CalendarScreen] backup initiated');
-  }, []);
-  const handleRestore = useCallback(() => {
-    console.log('[CalendarScreen] restore initiated');
-  }, []);
-
   return (
     <View style={styles.screen} onLayout={handleScreenLayout}>
       <View style={styles.headerRow} onLayout={handleHeaderLayout}>
@@ -499,11 +496,29 @@ const CalendarScreen: React.FC = () => {
                 )}
               </View>
               <View style={styles.menuActions}>
-                <TouchableOpacity style={styles.menuActionButton} onPress={handleBackup}>
-                  <Text style={styles.menuActionText}>백업하기</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.menuActionButton,
+                    isBackingUp ? styles.menuActionButtonDisabled : null,
+                  ]}
+                  onPress={handleBackup}
+                  disabled={isBackingUp}
+                >
+                  <Text style={styles.menuActionText}>
+                    {isBackingUp ? '백업 중...' : '백업하기'}
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.menuActionButton} onPress={handleRestore}>
-                  <Text style={styles.menuActionText}>백업 가져오기</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.menuActionButton,
+                    isRestoring ? styles.menuActionButtonDisabled : null,
+                  ]}
+                  onPress={startRestore}
+                  disabled={isRestoring}
+                >
+                  <Text style={styles.menuActionText}>
+                    {isRestoring ? '복원 중...' : '백업 가져오기'}
+                  </Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.menuSection}>
@@ -722,6 +737,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
+  },
+  menuActionButtonDisabled: {
+    opacity: 0.6,
   },
   menuActionText: {
     fontSize: 15,

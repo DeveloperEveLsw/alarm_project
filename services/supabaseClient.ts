@@ -5,22 +5,19 @@ import { supabaseStorageAdapter } from "./supabaseStorage";
 const SUPABASE_URL =
   Config.EXPO_PUBLIC_SUPABASE_URL ??
   Config.SUPABASE_URL ??
-  process.env.EXPO_PUBLIC_SUPABASE_URL ??
-  process.env.SUPABASE_URL ??
+  Config.SUPABASE_URL ??
   "";
 
 const SUPABASE_ANON_KEY =
   Config.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
   Config.SUPABASE_ANON_KEY ??
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
-  process.env.SUPABASE_ANON_KEY ??
+  Config.SUPABASE_ANON_KEY ??
   "";
 
 const SUPABASE_REDIRECT_URL =
   Config.EXPO_PUBLIC_SUPABASE_REDIRECT_URL ??
   Config.SUPABASE_REDIRECT_URL ??
-  process.env.EXPO_PUBLIC_SUPABASE_REDIRECT_URL ??
-  process.env.SUPABASE_REDIRECT_URL;
+  Config.SUPABASE_ANON_KEY;
 
 const hasSupabaseConfig = Boolean(SUPABASE_URL) && Boolean(SUPABASE_ANON_KEY);
 

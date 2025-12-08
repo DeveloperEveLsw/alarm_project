@@ -232,6 +232,42 @@ export type Database = {
         }
         Relationships: []
       }
+      device_backups: {
+        Row: {
+          categories_json: Json
+          counts_json: Json
+          created_at: string
+          exported_at: string
+          owner_id: string
+          platform: string
+          snapshot_json: Json
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          categories_json: Json
+          counts_json: Json
+          created_at?: string
+          exported_at?: string
+          owner_id: string
+          platform: string
+          snapshot_json: Json
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          categories_json?: Json
+          counts_json?: Json
+          created_at?: string
+          exported_at?: string
+          owner_id?: string
+          platform?: string
+          snapshot_json?: Json
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       routine_templates: {
         Row: {
           created_at: string
