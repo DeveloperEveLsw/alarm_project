@@ -8,6 +8,7 @@ import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
 import com.alarm_project.alarm.AlarmEnginePackage
+import com.alarm_project.supabase.SupabaseStoragePackage
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 
@@ -20,6 +21,7 @@ class MainApplication : Application(), ReactApplication {
               // Packages that cannot be autolinked yet can be added manually here, for example:
               // add(MyReactNativePackage())
               add(AlarmEnginePackage())
+              add(SupabaseStoragePackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

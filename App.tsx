@@ -21,6 +21,7 @@ import AlarmShakeScreen from './screens/AlarmShakeScreen';
 import AlarmPuzzleScreen from './screens/AlarmPuzzleScreen';
 import { AlarmEngine } from './alarm/engine';
 import { useAlarmPermissionsStore } from './stores/alarmPermissionsStore';
+import { useAuthStore } from './stores/authStore';
 import { RootStackParamList } from './types/navigation.types';
 import { getRandomShakeTarget } from './utils/shakeTarget';
 import type { PuzzleDifficulty } from './types/puzzle.types';
@@ -80,6 +81,7 @@ function App() {
   const isDarkMode = useColorScheme() === 'dark';
   const Stack = createNativeStackNavigator<RootStackParamList>();
   const hydratePermissions = useAlarmPermissionsStore(state => state.hydratePermissions);
+  const initializeAuth = useAuthStore(state => state.initialize);
   const hasHydratedPermissions = useRef(false);
 
   useEffect(() => {
@@ -89,6 +91,12 @@ function App() {
       console.warn('[Permissions] hydrate failed', error);
     });
   }, [hydratePermissions]);
+
+  useEffect(() => {
+    initializeAuth().catch(error => {
+      console.warn('[Auth] initialize failed', error);
+    });
+  }, [initializeAuth]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;

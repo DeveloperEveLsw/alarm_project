@@ -3,6 +3,7 @@ import {
   Alert,
   Animated,
   FlatList,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -36,10 +37,13 @@ import {
 import { categoryService } from "../services/categoryService";
 import { useAlarmPermissionsStore } from "../stores/alarmPermissionsStore";
 import type { AlarmPermissionState } from "../stores/alarmPermissionsStore";
+import { useAuthStore } from "../stores/authStore";
 import type { AlarmDraft, AlarmItem } from "../types/alarm.types";
 import type { Category } from "../types/category.types";
 
 const DEFAULT_SOUND = "Arcade";
+const EMPTY_ALARMS: AlarmItem[] = [];
+const EMPTY_CATEGORIES: Category[] = [];
 
 const selectHasExactAlarm = (state: AlarmPermissionState) => state.hasExactAlarm;
 const selectHasPostNotifications = (state: AlarmPermissionState) => state.hasPostNotifications;
@@ -105,12 +109,16 @@ const HomeScreen: React.FC = () => {
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
   const [categoryVisibility, setCategoryVisibility] = useState<CategoryVisibilityMap>({});
   const queryClient = useQueryClient();
+  const user = useAuthStore(state => state.user);
+  const loginWithGoogle = useAuthStore(state => state.loginWithGoogle);
+  const logout = useAuthStore(state => state.logout);
+  const isLoggingIn = useAuthStore(state => state.isLoggingIn);
 
   const categoriesQuery = useQuery<Category[]>({
     queryKey: ["categories"],
     queryFn: categoryService.getCategories,
   });
-  const categories = categoriesQuery.data ?? [];
+  const categories = categoriesQuery.data ?? EMPTY_CATEGORIES;
 
   const createCategoryMutation = useMutation({
     mutationFn: (name: string) => categoryService.createCategory(name),
@@ -141,7 +149,7 @@ const HomeScreen: React.FC = () => {
     queryFn: getAlarmSetTemplates,
   });
 
-  const alarms = alarmsQuery.data ?? [];
+  const alarms = alarmsQuery.data ?? EMPTY_ALARMS;
   const isLoadingAlarms = alarmsQuery.isLoading;
   const selectionCount = selectedIds.length;
   const hasAlarms = alarms.length > 0;
@@ -189,12 +197,14 @@ const HomeScreen: React.FC = () => {
       const next: CategoryVisibilityMap = { ...prev };
       let changed = false;
       const ids = new Set(categories.map(category => category.id));
+
       categories.forEach(category => {
         if (typeof next[category.id] === "undefined") {
           next[category.id] = true;
           changed = true;
         }
       });
+
       Object.keys(next).forEach(key => {
         const id = Number(key);
         if (!ids.has(id)) {
@@ -202,7 +212,8 @@ const HomeScreen: React.FC = () => {
           changed = true;
         }
       });
-      return changed ? { ...next } : next;
+
+      return changed ? next : prev;
     });
   }, [categories]);
 
@@ -613,16 +624,40 @@ const HomeScreen: React.FC = () => {
   }, []);
 
   const handleRestore = useCallback(() => {
-    console.log('[HomeScreen] restore initiated');
+    console.log("[HomeScreen] restore initiated");
   }, []);
 
-  const userProfile = useMemo(
-    () => ({
-      name: '사용자 이름',
-      email: 'user@example.com',
-    }),
-    [],
-  );
+  const handleLogin = useCallback(() => {
+    loginWithGoogle().catch(error => {
+      console.warn("[Auth] login failed", error);
+    });
+  }, [loginWithGoogle]);
+
+  const handleLogout = useCallback(() => {
+    logout().catch(error => {
+      console.warn("[Auth] logout failed", error);
+    });
+  }, [logout]);
+
+  const userProfile = useMemo(() => {
+    if (!user) return null;
+    const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+    const displayName =
+      (typeof metadata.full_name === "string" && metadata.full_name) ||
+      (typeof metadata.name === "string" && metadata.name) ||
+      user.email ||
+      "Google 사용자";
+    const email = user.email ?? "";
+    const avatarUrl =
+      typeof metadata.avatar_url === "string" && metadata.avatar_url.trim().length > 0
+        ? metadata.avatar_url
+        : null;
+    return {
+      name: displayName,
+      email,
+      avatarUrl,
+    };
+  }, [user]);
 
   const editorVisible = Boolean(editorState);
   const draftForEditor = useMemo(
@@ -806,8 +841,46 @@ const HomeScreen: React.FC = () => {
           >
             <ScrollView>
               <View style={styles.menuHeader}>
-                <Text style={styles.menuHeaderLabel}>{userProfile.name}</Text>
-                <Text style={styles.menuHeaderSubLabel}>{userProfile.email}</Text>
+                {userProfile ? (
+                  <>
+                    <View style={styles.menuHeaderRow}>
+                      {userProfile.avatarUrl ? (
+                        <Image source={{ uri: userProfile.avatarUrl }} style={styles.menuAvatar} />
+                      ) : (
+                        <View style={styles.menuAvatarPlaceholder}>
+                          <Text style={styles.menuAvatarInitials}>
+                            {userProfile.name.slice(0, 2).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.menuHeaderInfo}>
+                        <Text style={styles.menuHeaderLabel}>{userProfile.name}</Text>
+                        {userProfile.email ? (
+                          <Text style={styles.menuHeaderSubLabel}>{userProfile.email}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                    <TouchableOpacity style={styles.menuLogoutButton} onPress={handleLogout}>
+                      <Text style={styles.menuLogoutText}>로그아웃</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <View style={styles.menuAuthPrompt}>
+                    <Text style={styles.menuAuthTitle}>로그인이 필요해요</Text>
+                    <Text style={styles.menuAuthSubtitle}>
+                      Google 계정으로 로그인하면 백업/공유 기능을 사용할 수 있어요.
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.googleButton, isLoggingIn ? styles.googleButtonDisabled : null]}
+                      onPress={handleLogin}
+                      disabled={isLoggingIn}
+                    >
+                      <Text style={styles.googleButtonLabel}>
+                        {isLoggingIn ? "로그인 중..." : "Google 계정으로 로그인"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
               <View style={styles.menuActions}>
                 <TouchableOpacity style={styles.menuActionButton} onPress={handleBackup}>
@@ -950,6 +1023,36 @@ const styles = StyleSheet.create({
   },
   menuHeader: {
     marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: "#EEF2FF",
+  },
+  menuHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  menuAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+  },
+  menuAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#C7D2FE",
+  },
+  menuAvatarInitials: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#312E81",
+  },
+  menuHeaderInfo: {
+    flex: 1,
   },
   menuHeaderLabel: {
     fontSize: 18,
@@ -960,6 +1063,48 @@ const styles = StyleSheet.create({
   menuHeaderSubLabel: {
     fontSize: 14,
     color: "#6B7280",
+  },
+  menuLogoutButton: {
+    marginTop: 12,
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    backgroundColor: "#fff",
+  },
+  menuLogoutText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#4338CA",
+  },
+  menuAuthPrompt: {
+    gap: 8,
+  },
+  menuAuthTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  menuAuthSubtitle: {
+    fontSize: 13,
+    color: "#4B5563",
+  },
+  googleButton: {
+    marginTop: 8,
+    backgroundColor: "#1A73E8",
+    borderRadius: 999,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  googleButtonDisabled: {
+    opacity: 0.6,
+  },
+  googleButtonLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#fff",
   },
   menuActions: {
     gap: 12,
